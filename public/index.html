@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Discord Video Host</title>
+    <title>Discord Media Host</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -55,6 +55,16 @@
         }
         button.submit-btn:hover { background: #0ea5e9; }
         button:disabled { background: #64748b; cursor: not-allowed; }
+        #previewContainer {
+            margin-top: 16px;
+            display: none;
+        }
+        #previewMedia {
+            max-width: 100%;
+            max-height: 220px;
+            border-radius: 8px;
+            border: 1px solid #475569;
+        }
         #result {
             margin-top: 20px;
             text-align: left;
@@ -80,22 +90,26 @@
 <body>
 
     <div class="card">
-        <h2>Discord Video Host</h2>
-        <p>Upload a video to generate your direct embed link.</p>
+        <h2>Discord Media Host</h2>
+        <p>Upload a video or GIF to generate your direct link.</p>
         
         <form id="uploadForm">
             <label class="file-upload-btn" id="fileLabel">
-                📁 Choose Video File
-                <input type="file" id="videoInput" name="video" accept="video/mp4,video/*">
+                📁 Choose MP4 or GIF
+                <input type="file" id="videoInput" name="video" accept="video/*,image/gif">
             </label>
             
             <button type="submit" class="submit-btn" id="uploadBtn" disabled>Upload & Get Link</button>
         </form>
 
-        <div class="loading" id="loadingText">Uploading video... Please wait ⏳</div>
+        <div class="loading" id="loadingText">Uploading media... Please wait ⏳</div>
+
+        <div id="previewContainer">
+            <video id="previewMedia" controls autoplay loop muted playsinline></video>
+        </div>
 
         <div id="result">
-            <span class="success-msg">✅ Ready for Discord:</span>
+            <span class="success-msg">✅ Direct Link Ready:</span>
             <input type="text" id="linkOutput" readonly onclick="this.select()">
             <button onclick="copyLink()" style="margin-top: 8px; background: #16a34a; color: white; border: none; padding: 10px; border-radius: 4px; width: 100%; cursor: pointer; font-weight: bold;">Copy Link 📋</button>
         </div>
@@ -107,12 +121,15 @@
         const uploadBtn = document.getElementById('uploadBtn');
         const uploadForm = document.getElementById('uploadForm');
         const loadingText = document.getElementById('loadingText');
+        const previewContainer = document.getElementById('previewContainer');
+        const previewMedia = document.getElementById('previewMedia');
         const resultDiv = document.getElementById('result');
         const linkOutput = document.getElementById('linkOutput');
 
         videoInput.addEventListener('change', () => {
             if (videoInput.files.length > 0) {
-                fileLabel.innerText = 'Selected: ' + videoInput.files[0].name;
+                const file = videoInput.files[0];
+                fileLabel.innerText = 'Selected: ' + file.name;
                 uploadBtn.disabled = false;
             }
         });
@@ -127,6 +144,7 @@
             uploadBtn.disabled = true;
             loadingText.style.display = 'block';
             resultDiv.style.display = 'none';
+            previewContainer.style.display = 'none';
 
             try {
                 const response = await fetch('/upload', {
@@ -137,6 +155,8 @@
                 const data = await response.json();
                 if (response.ok) {
                     linkOutput.value = data.url;
+                    previewMedia.src = data.url;
+                    previewContainer.style.display = 'block';
                     resultDiv.style.display = 'block';
                 } else {
                     alert(data.error || 'Upload failed!');
