@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Animation Studio</title>
+<style>
+:root{--k:#0f172a;--w:#ffffff;--r:#ef4444;--line:rgb(255 255 255 / .25);
+--out:cubic-bezier(.16,1,.3,1);--io:cubic-bezier(.65,0,.35,1);--spring:cubic-bezier(.34,1.56,.64,1)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;margin:0}
+body{background:var(--k);color:var(--w);font:500 14px/1.3 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+display:flex;flex-direction:column;overflow:hidden;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;pointer-events:none;flex:none}
+button,a.btn{font:inherit;color:inherit;background:none;border:2px solid var(--line);border-radius:10px;min-width:44px;height:44px;
+display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;padding:0 10px;text-decoration:none;
+transition:transform 450ms var(--spring),background-color 150ms,border-color 150ms,color 150ms,opacity 150ms}
+button:active,a.btn:active{transform:scale(.95);transition:transform 100ms var(--out)}
+button:focus-visible,a.btn:focus-visible,input:focus-visible{outline:2px solid var(--r);outline-offset:2px}
+button:disabled{opacity:.3;pointer-events:none}
+.on{background:var(--w);color:var(--k);border-color:var(--w)}
+.red{background:var(--r);border-color:var(--r);color:var(--w)}
+header{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:2px solid var(--line)}
+header h1{font-size:16px;margin:0;flex:1}
+.sw{position:relative;width:104px;padding:0;overflow:hidden}
+.sw span{flex:1;text-align:center;z-index:1;transition:color 200ms var(--io)}
+.sw i{position:absolute;inset:0 auto 0 0;width:50%;background:var(--w);transition:transform 250ms var(--out)}
+.sw[aria-checked=false] span:first-of-type,.sw[aria-checked=true] span:nth-of-type(2){color:var(--k)}
+.sw[aria-checked=true] i{transform:translateX(100%)}
+#stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:12px}
+#view{width:min(100%,calc(100dvh - 290px));aspect-ratio:1;background:#fff;border:2px solid var(--line);border-radius:8px;touch-action:none;cursor:crosshair}
+#tl{display:flex;align-items:center;gap:8px;padding:8px 12px;border-top:2px solid var(--line)}
+#strip{flex:1;display:flex;gap:8px;overflow-x:auto;padding:4px 2px;scrollbar-width:none}
+#strip::-webkit-scrollbar{display:none}
+.fr{flex:none;position:relative;width:56px;height:56px;padding:0;overflow:hidden;border-radius:8px}
+.fr canvas{width:100%;height:100%;display:block;background:#fff}
+.fr span{position:absolute;left:0;bottom:0;background:var(--k);color:var(--w);font-size:11px;padding:1px 5px;border-top-right-radius:6px}
+.fr.sel{border-color:var(--r)}
+#tools{display:flex;align-items:center;gap:6px;padding:8px 12px;border-top:2px solid var(--line)}
+.sp{flex:1}
+.c{width:32px;min-width:32px;height:32px;border-radius:50%;padding:0}
+.c.sel{outline:2px solid var(--w);outline-offset:2px}
+#menu,#layers{position:fixed;background:var(--k);border:2px solid var(--w);border-radius:14px;padding:8px;opacity:0;pointer-events:none;
+transform:translateY(12px);transition:opacity 200ms var(--out),transform 350ms var(--out)}
+#menu.open,#layers.open{opacity:1;transform:none;pointer-events:auto}
+#menu{display:flex;flex-direction:column;gap:6px;width:160px;z-index:20}
+#layers{inset-inline:12px;margin-inline:auto;width:min(420px,100% - 24px);bottom:calc(76px + env(safe-area-inset-bottom));max-height:45dvh;overflow:auto;z-index:10}
+.ph{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.ph b{flex:1}
+#layers small{display:block;margin-bottom:8px;opacity:.7}
+.row{display:flex;gap:6px;margin-top:6px;padding:4px;border:2px solid var(--line);border-radius:12px}
+.row.sel{border-color:var(--r)}
+.row .nm{flex:1;justify-content:flex-start;border:0}
+.row button{height:40px}
+#modal{position:fixed;inset:0;background:var(--k);display:none;align-items:center;justify-content:center;padding:20px;z-index:30}
+#modal.open{display:flex}
+#mbody{width:min(380px,100%);text-align:center;display:flex;flex-direction:column;gap:12px;align-items:center}
+#mbody h2{margin:0;font-size:20px}#mbody p{margin:0;opacity:.8}
+#mbody input{width:100%;height:44px;background:var(--k);color:var(--w);border:2px solid var(--line);border-radius:10px;padding:0 12px;font:inherit}
+.acts{display:flex;gap:8px;width:100%}.acts>*{flex:1}
+.ok{width:72px;height:72px;fill:none;stroke:var(--r);stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.ring{stroke-dasharray:145;stroke-dashoffset:145;animation:draw 280ms var(--io) forwards}
+.tick{stroke-dasharray:40;stroke-dashoffset:40;animation:draw 190ms var(--io) 280ms forwards}
+@keyframes draw{to{stroke-dashoffset:0}}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<symbol id="back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
+<symbol id="pen" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></symbol>
+<symbol id="brush" viewBox="0 0 24 24"><path d="M9.06 11.9l8.07-8.06a2.85 2.85 0 114.03 4.03l-8.06 8.08"/><path d="M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2.5 1.52-2 2.02 1.08 1.1 2.49 2.02 4 2.02 2.2 0 4-1.8 4-4.04a3.01 3.01 0 00-3-3.02z"/></symbol>
+<symbol id="eraser" viewBox="0 0 24 24"><path d="M7 21l-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="M5 11l9 9"/></symbol>
+<symbol id="layers" viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></symbol>
+<symbol id="plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+<symbol id="play" viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z"/></symbol>
+<symbol id="pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></symbol>
+<symbol id="up" viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></symbol>
+<symbol id="down" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+<symbol id="trash" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></symbol>
+<symbol id="lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></symbol>
+<symbol id="copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 012-2h9"/></symbol>
+<symbol id="send" viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></symbol>
+<symbol id="close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+</svg>
+
+<header>
+  <a class="btn" href="/" aria-label="Back"><svg class="i"><use href="#back"/></svg></a>
+  <h1>Studio</h1>
+  <button id="fmt" class="sw" role="switch" aria-checked="false" aria-label="Export format: MP4 or GIF"><i></i><span>MP4</span><span>GIF</span></button>
+  <button id="publish" class="red"><svg class="i"><use href="#send"/></svg>Publish</button>
+</header>
+
+<main id="stage"><canvas id="view" width="540" height="540"></canvas></main>
+
+<section id="tl">
+  <button id="play" aria-label="Play"><svg class="i"><use href="#play"/></svg></button>
+  <button id="fps" aria-label="Frames per second">8 fps</button>
+  <div id="strip"></div>
+  <button id="add" aria-label="Add frame"><svg class="i"><use href="#plus"/></svg></button>
+</section>
+
+<nav id="tools">
+  <button data-tool="pen" class="on" aria-label="Pen"><svg class="i"><use href="#pen"/></svg></button>
+  <button data-tool="brush" aria-label="Brush"><svg class="i"><use href="#brush"/></svg></button>
+  <button data-tool="eraser" aria-label="Eraser"><svg class="i"><use href="#eraser"/></svg></button>
+  <span class="sp"></span>
+  <button class="c sel" data-c="#0f172a" style="background:#0f172a" aria-label="Black"></button>
+  <button class="c" data-c="#ffffff" style="background:#ffffff" aria-label="White"></button>
+  <button class="c" data-c="#ef4444" style="background:#ef4444" aria-label="Red"></button>
+  <span class="sp"></span>
+  <button id="lbtn" aria-label="Layers"><svg class="i"><use href="#layers"/></svg></button>
+</nav>
+
+<aside id="layers" aria-label="Layers panel"></aside>
+<div id="menu" role="menu"></div>
+<div id="modal"><div id="mbody"></div></div>
+
+<script>
+const $=s=>document.querySelector(s);
+const ic=n=>`<svg class="i"><use href="#${n}"/></svg>`;
+const W=540,H=540,view=$('#view'),vx=view.getContext('2d'),strip=$('#strip'),panel=$('#layers'),menu=$('#menu');
+const mk=()=>{const c=document.createElement('canvas');c.width=W;c.height=H;return c};
+let meta=[{lock:false}],frames=[[mk()]],cf=0,cl=0,tool='pen',color='#0f172a',fps=8,timer=null,fmt='mp4';
+const blank=()=>meta.map(mk),tmp=mk(),tx=tmp.getContext('2d');
+
+function comp(ctx,list,w,h){ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h);list.forEach(c=>ctx.drawImage(c,0,0,w,h))}
+const render=()=>comp(vx,frames[cf],W,H);
+function paint(i){const c=strip.children[i]?.querySelector('canvas');if(c)comp(c.getContext('2d'),frames[i],c.width,c.height)}
+
+/* ---------- timeline ---------- */
+function drawStrip(){
+  strip.innerHTML='';
+  frames.forEach((_,i)=>{
+    const b=document.createElement('button');
+    b.className='fr'+(i===cf?' sel':'');
+    b.setAttribute('aria-label','Frame '+(i+1));
+    b.innerHTML='<canvas width="80" height="80"></canvas><span>'+(i+1)+'</span>';
+    b.onclick=()=>tap(i,b);
+    strip.append(b);paint(i);
+  });
+  strip.children[cf]?.scrollIntoView({inline:'nearest',block:'nearest'});
+}
+function go(i){
+  cf=i;[...strip.children].forEach((c,j)=>c.classList.toggle('sel',j===i));
+  strip.children[i]?.scrollIntoView({inline:'nearest',block:'nearest'});render();
+}
+let lt=0,li=-1;
+function tap(i,b){ // second tap on the same frame within 350 ms opens the menu
+  const t=Date.now();stopPlay();
+  if(li===i&&t-lt<350){lt=0;openMenu(i,b);return}
+  lt=t;li=i;go(i);
+}
+function openMenu(i,b){
+  go(i);const r=b.getBoundingClientRect();menu.innerHTML='';
+  const dup=()=>frames[i].map(c=>{const n=mk();n.getContext('2d').drawImage(c,0,0);return n});
+  [['Insert left',()=>{frames.splice(i,0,blank());cf=i}],
+   ['Insert right',()=>{frames.splice(i+1,0,blank());cf=i+1}],
+   ['Duplicate',()=>{frames.splice(i+1,0,dup());cf=i+1}],
+   ['Delete',()=>{if(frames.length>1){frames.splice(i,1);cf=Math.min(i,frames.length-1)}},'red']
+  ].forEach(([t,fn,cls])=>{
+    const m=document.createElement('button');m.textContent=t;if(cls)m.className=cls;
+    m.onclick=()=>{fn();menu.classList.remove('open');drawStrip();render()};menu.append(m);
+  });
+  menu.style.left=Math.max(8,Math.min(r.left,innerWidth-168))+'px';
+  menu.style.bottom=(innerHeight-r.top+8)+'px';menu.classList.add('open');
+}
+document.addEventListener('pointerdown',e=>{if(!menu.contains(e.target))menu.classList.remove('open')});
+$('#add').onclick=()=>{stopPlay();frames.push(blank());cf=frames.length-1;drawStrip();render()};
+
+/* ---------- playback ---------- */
+const playB=$('#play');
+function stopPlay(){if(timer){clearInterval(timer);timer=null;playB.innerHTML=ic('play')}}
+playB.onclick=()=>{if(timer)return stopPlay();playB.innerHTML=ic('pause');timer=setInterval(()=>go((cf+1)%frames.length),1000/fps)};
+$('#fps').onclick=e=>{const o=[4,8,12,24];fps=o[(o.indexOf(fps)+1)%o.length];e.currentTarget.textContent=fps+' fps';if(timer){stopPlay();playB.onclick()}};
+
+/* ---------- drawing ---------- */
+let down=false,last;
+const pos=e=>{const r=view.getBoundingClientRect();return[(e.clientX-r.left)*W/r.width,(e.clientY-r.top)*H/r.height]};
+function stroke(a,b){
+  const layer=frames[cf][cl],x=layer.getContext('2d'),lock=meta[cl].lock&&tool!=='eraser';
+  const line=ctx=>{ctx.strokeStyle=color;ctx.lineWidth=tool==='pen'?3:tool==='brush'?18:28;ctx.lineCap=ctx.lineJoin='round';
+    ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke()};
+  if(tool==='eraser'){x.globalCompositeOperation='destination-out';line(x)}
+  else if(lock&&cl>0){ // clip to the layer below (the base)
+    tx.globalCompositeOperation='source-over';tx.clearRect(0,0,W,H);line(tx);
+    tx.globalCompositeOperation='destination-in';tx.drawImage(frames[cf][cl-1],0,0);
+    x.globalCompositeOperation='source-over';x.drawImage(tmp,0,0);
+  }else{x.globalCompositeOperation=lock?'source-atop':'source-over';line(x)} // bottom layer: lock to own pixels
+  x.globalCompositeOperation='source-over';render();
+}
+view.onpointerdown=e=>{stopPlay();view.setPointerCapture(e.pointerId);down=true;last=pos(e);stroke(last,last)};
+view.onpointermove=e=>{if(!down)return;const p=pos(e);stroke(last,p);last=p};
+view.onpointerup=view.onpointercancel=()=>{if(down){down=false;paint(cf)}};
+
+document.querySelectorAll('[data-tool]').forEach(b=>b.onclick=()=>{tool=b.dataset.tool;
+  document.querySelectorAll('[data-tool]').forEach(x=>x.classList.toggle('on',x===b))});
+document.querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>{color=b.dataset.c;
+  document.querySelectorAll('[data-c]').forEach(x=>x.classList.toggle('sel',x===b))});
+
+/* ---------- layers ---------- */
+function mv(i,d){const j=i+d;[meta[i],meta[j]]=[meta[j],meta[i]];frames.forEach(f=>[f[i],f[j]]=[f[j],f[i]]);
+  cl=cl===i?j:cl===j?i:cl;refresh()}
+function del(i){if(meta.length<2)return;meta.splice(i,1);frames.forEach(f=>f.splice(i,1));
+  cl=Math.min(cl>i?cl-1:cl,meta.length-1);refresh()}
+function refresh(){drawLayers();render();frames.forEach((_,i)=>paint(i))}
+function drawLayers(){
+  const lk=meta[cl].lock;
+  panel.innerHTML=`<div class="ph"><b>Layers</b><button id="addL" aria-label="Add layer">${ic('plus')}</button>
+  <button id="mask" role="switch" aria-checked="${lk}" class="${lk?'on':''}">${ic('lock')}Mask lock</button></div>
+  <small>Mask lock keeps shading inside the layer below.</small>`;
+  for(let i=meta.length-1;i>=0;i--){
+    const r=document.createElement('div');r.className='row'+(i===cl?' sel':'');
+    r.innerHTML=`<button class="nm">Layer ${i+1}${meta[i].lock?ic('lock'):''}</button>
+    <button aria-label="Move up" ${i===meta.length-1?'disabled':''}>${ic('up')}</button>
+    <button aria-label="Move down" ${i===0?'disabled':''}>${ic('down')}</button>
+    <button aria-label="Delete layer" ${meta.length<2?'disabled':''}>${ic('trash')}</button>`;
+    const[n,u,d,x]=r.children;
+    n.onclick=()=>{cl=i;drawLayers()};u.onclick=()=>mv(i,1);d.onclick=()=>mv(i,-1);x.onclick=()=>del(i);
+    panel.append(r);
+  }
+  $('#addL').onclick=()=>{meta.push({lock:false});frames.forEach(f=>f.push(mk()));cl=meta.length-1;refresh()};
+  $('#mask').onclick=()=>{meta[cl].lock=!meta[cl].lock;drawLayers()};
+}
+$('#lbtn').onclick=e=>{const o=panel.classList.toggle('open');e.currentTarget.classList.toggle('on',o);if(o)drawLayers()};
+
+/* ---------- format switch + publish ---------- */
+const fmtB=$('#fmt');
+fmtB.onclick=()=>{fmt=fmt==='mp4'?'gif':'mp4';fmtB.setAttribute('aria-checked',fmt==='gif')};
+
+const modal=$('#modal'),mb=$('#mbody');
+const png=i=>new Promise(r=>{const c=mk();comp(c.getContext('2d'),frames[i],W,H);c.toBlob(r,'image/png')});
+const close=`<button id="mc">${ic('close')}Close</button>`;
+const show=h=>{mb.innerHTML=h;modal.classList.add('open');const c=$('#mc');if(c)c.onclick=()=>modal.classList.remove('open')};
+
+$('#publish').onclick=async()=>{
+  stopPlay();panel.classList.remove('open');$('#lbtn').classList.remove('on');
+  show(`<h2>Rendering ${fmt.toUpperCase()}</h2><p>Sending ${frames.length} frame${frames.length>1?'s':''}. Keep this page open.</p>`);
+  try{
+    const fd=new FormData();fd.append('format',fmt);fd.append('fps',fps);
+    for(let i=0;i<frames.length;i++)fd.append('frames',await png(i),`f${i}.png`);
+    const res=await fetch('/publish',{method:'POST',body:fd}),data=await res.json();
+    if(!res.ok)throw new Error(data.error||'Publish failed.');
+    show(`<svg class="ok" viewBox="0 0 52 52"><circle class="ring" cx="26" cy="26" r="23"/><path class="tick" d="M15 27l8 8 15-16"/></svg>
+    <h2>Published</h2><p>This link works for 24 hours.</p>
+    <input id="lk" readonly value="${data.url}" aria-label="Direct link">
+    <div class="acts"><button id="cp" class="red">${ic('copy')}Copy link</button><a class="btn" href="/album.html">Open album</a></div>${close}`);
+    const lk=$('#lk');lk.onclick=()=>lk.select();
+    $('#cp').onclick=async e=>{try{await navigator.clipboard.writeText(data.url)}catch(_){lk.select();document.execCommand('copy')}
+      const b=e.currentTarget;b.innerHTML=ic('copy')+'Copied';setTimeout(()=>b.innerHTML=ic('copy')+'Copy link',1500)};
+  }catch(err){show(`<h2>Publish failed</h2><p>${err.message} Check your connection and try again.</p>${close}`)}
+};
+
+drawStrip();render();
+</script>
+</body>
+</html>
