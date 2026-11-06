@@ -20,9 +20,9 @@ button:focus-visible,a.btn:focus-visible,input:focus-visible{outline:2px solid v
 button:disabled{opacity:.3;pointer-events:none}
 .on{background:var(--w);color:var(--k);border-color:var(--w)}
 .red{background:var(--r);border-color:var(--r);color:var(--w)}
-header{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:2px solid var(--line)}
+header{display:flex;align-items:center;gap:6px;padding:8px;border-bottom:2px solid var(--line)}
 header h1{font-size:16px;margin:0;flex:1}
-.sw{position:relative;width:104px;padding:0;overflow:hidden}
+.sw{position:relative;width:96px;padding:0;overflow:hidden}
 .sw span{flex:1;text-align:center;z-index:1;transition:color 200ms var(--io)}
 .sw i{position:absolute;inset:0 auto 0 0;width:50%;background:var(--w);transition:transform 250ms var(--out)}
 .sw[aria-checked=false] span:first-of-type,.sw[aria-checked=true] span:nth-of-type(2){color:var(--k)}
@@ -80,6 +80,8 @@ transform:translateY(12px);transition:opacity 200ms var(--out),transform 350ms v
 <symbol id="i-brush" viewBox="0 0 24 24"><path d="M9.06 11.9l8.07-8.06a2.85 2.85 0 114.03 4.03l-8.06 8.08"/><path d="M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2.5 1.52-2 2.02 1.08 1.1 2.49 2.02 4 2.02 2.2 0 4-1.8 4-4.04a3.01 3.01 0 00-3-3.02z"/></symbol>
 <symbol id="i-eraser" viewBox="0 0 24 24"><path d="M7 21l-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="M5 11l9 9"/></symbol>
 <symbol id="i-bucket" viewBox="0 0 24 24"><path d="M19 11l-8-8-8.6 8.6a2 2 0 000 2.8l5.2 5.2c.8.8 2 .8 2.8 0L19 11z"/><path d="M5 2l5 5"/><path d="M2 13h15"/><path d="M22 20a2 2 0 11-4 0c0-1.7 1.7-3.7 2-4 .3.3 2 2.3 2 4z"/></symbol>
+<symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 010 11H11"/></symbol>
+<symbol id="i-redo" viewBox="0 0 24 24"><path d="M15 14l5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 000 11H13"/></symbol>
 <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></symbol>
 <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
 <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z"/></symbol>
@@ -95,7 +97,9 @@ transform:translateY(12px);transition:opacity 200ms var(--out),transform 350ms v
 
 <header>
   <a class="btn" href="/" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></a>
-  <h1>Studio</h1>
+  <button id="undo" aria-label="Undo" disabled style="min-width:40px"><svg class="i"><use href="#i-undo"/></svg></button>
+  <button id="redo" aria-label="Redo" disabled style="min-width:40px"><svg class="i"><use href="#i-redo"/></svg></button>
+  <span class="sp"></span>
   <button id="fmt" class="sw" role="switch" aria-checked="false" aria-label="Export format: MP4 or GIF"><i></i><span>MP4</span><span>GIF</span></button>
   <button id="publish" class="red"><svg class="i"><use href="#i-send"/></svg>Publish</button>
 </header>
@@ -214,8 +218,8 @@ function fill(px,py){ // flood fill what you see, paint the result on the active
       const n=ny*W+nx;if(v[n])continue;v[n]=1;const d=df(n);if(d<=90)st.push(n);else if(d<=500)put(n)}} // soft edges get covered too
   lx.putImageData(o,0,0);layer.d=1;render();
 }
-view.onpointerdown=e=>{stopPlay();closeSheets();if(tool==="fill"){const p=pos(e);fill(p[0],p[1]);paint(cf);return}
-  view.setPointerCapture(e.pointerId);down=true;last=pos(e);stroke(last,last)};
+view.onpointerdown=e=>{stopPlay();closeSheets();if(tool==="fill"){const p=pos(e);save();fill(p[0],p[1]);paint(cf);return}
+  view.setPointerCapture(e.pointerId);down=true;last=pos(e);save();stroke(last,last)};
 view.onpointermove=e=>{if(!down)return;const p=pos(e);stroke(last,p);last=p};
 view.onpointerup=view.onpointercancel=()=>{if(down){down=false;paint(cf)}};
 
@@ -304,6 +308,24 @@ $('#publish').onclick=async()=>{
       const b=e.currentTarget;b.innerHTML=ic('copy')+'Copied';setTimeout(()=>b.innerHTML=ic('copy')+'Copy link',1500)};
   }catch(err){show(`<h2>Publish failed</h2><p>${err.message} Check your connection and try again.</p>${close}`)}
 };
+
+/* ---------- undo / redo (drawing and fills, last 20 steps) ---------- */
+const undoS=[],redoS=[];
+const snap=c=>({c,img:c.getContext('2d').getImageData(0,0,W,H),d:c.d});
+function hist(){$('#undo').disabled=!undoS.length;$('#redo').disabled=!redoS.length}
+function save(){undoS.push(snap(frames[cf][cl]));if(undoS.length>20)undoS.shift();redoS.length=0;hist()}
+function step(from,to){
+  let e;while((e=from.pop())){
+    const f=frames.findIndex(fr=>fr.includes(e.c));if(f<0)continue; // its frame or layer was deleted
+    to.push(snap(e.c));e.c.getContext('2d').putImageData(e.img,0,0);e.c.d=e.d;
+    stopPlay();cl=frames[f].indexOf(e.c);if(f!==cf)go(f);if(panel.classList.contains('open'))drawLayers();render();paint(f);break;
+  }
+  hist();
+}
+$('#undo').onclick=()=>step(undoS,redoS);$('#redo').onclick=()=>step(redoS,undoS);
+document.addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT'||!(e.ctrlKey||e.metaKey))return;const k=e.key.toLowerCase();
+  if(k==='z'){e.preventDefault();$(e.shiftKey?'#redo':'#undo').click()}else if(k==='y'){e.preventDefault();$('#redo').click()}});
 
 drawStrip();render();
 </script>
