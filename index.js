@@ -38,13 +38,13 @@ const supabase = createClient(`https://${REF}.supabase.co`, process.env.SUPABASE
 });
 
 async function init() {
-    await pool.query(`create table if not exists media (
+    await pool.query(`create table if not exists hosted_media (
         id uuid primary key default gen_random_uuid(),
         filename text unique not null,
         kind text not null,
         created_at timestamptz not null default now())`);
-    await pool.query('create index if not exists media_created_idx on media (created_at)');
-    await pool.query('alter table media enable row level security'); // no public API access
+    await pool.query('create index if not exists hosted_media_created_idx on hosted_media (created_at)');
+    await pool.query('alter table hosted_media enable row level security'); // no public API access
     const { error } = await supabase.storage.createBucket(BUCKET, { public: false });
     if (error && !/exist/i.test(error.message)) console.error('Bucket error:', error.message);
     cleanup();
@@ -55,12 +55,12 @@ async function init() {
 async function cleanup() {
     try {
         const { rows } = await pool.query(
-            `select filename from media where created_at < now() - interval '${TTL_HOURS} hours'`);
+            `select filename from hosted_media where created_at < now() - interval '${TTL_HOURS} hours'`);
         if (!rows.length) return;
         const names = rows.map(r => r.filename);
         const { error } = await supabase.storage.from(BUCKET).remove(names);
         if (error) throw error;
-        await pool.query('delete from media where filename = any($1)', [names]);
+        await pool.query('delete from hosted_media where filename = any($1)', [names]);
         names.forEach(n => fs.rm(path.join(uploadDir, n), { force: true }, () => {}));
         console.log(`Cleanup removed ${names.length} file(s).`);
     } catch (e) {
@@ -72,7 +72,7 @@ async function store(filePath, name, mime) {
     const buf = await fs.promises.readFile(filePath);
     const { error } = await supabase.storage.from(BUCKET).upload(name, buf, { contentType: mime });
     if (error) throw error;
-    await pool.query('insert into media (filename, kind) values ($1, $2)',
+    await pool.query('insert into hosted_media (filename, kind) values ($1, $2)',
         [name, mime === 'image/gif' ? 'gif' : 'video']);
 }
 
@@ -176,7 +176,7 @@ app.post('/publish', frameUpload.array('frames', 200), async (req, res) => {
 app.get('/api/media', async (req, res) => {
     try {
         const { rows } = await pool.query(
-            `select filename, kind, created_at from media
+            `select filename, kind, created_at from hosted_media
              where created_at > now() - interval '${TTL_HOURS} hours'
              order by created_at desc limit 200`);
         res.json(rows.map(r => ({ url: fullUrl(req, r.filename), kind: r.kind, createdAt: r.created_at })));
