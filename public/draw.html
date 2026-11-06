@@ -27,8 +27,8 @@ header h1{font-size:16px;margin:0;flex:1}
 .sw i{position:absolute;inset:0 auto 0 0;width:50%;background:var(--w);transition:transform 250ms var(--out)}
 .sw[aria-checked=false] span:first-of-type,.sw[aria-checked=true] span:nth-of-type(2){color:var(--k)}
 .sw[aria-checked=true] i{transform:translateX(100%)}
-#stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:12px}
-#view{width:min(100%,calc(100dvh - 290px));aspect-ratio:1;background:#fff;border:2px solid var(--line);border-radius:8px;touch-action:none;cursor:crosshair}
+#stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:4px}
+#view{width:min(100%,calc((100dvh - 236px)*.8));aspect-ratio:4/5;background:#fff;outline:2px solid var(--line);border-radius:4px;touch-action:none;cursor:crosshair}
 #tl{display:flex;align-items:center;gap:8px;padding:8px 12px;border-top:2px solid var(--line)}
 #strip{flex:1;display:flex;gap:8px;overflow-x:auto;padding:4px 2px;scrollbar-width:none}
 #strip::-webkit-scrollbar{display:none}
@@ -36,15 +36,23 @@ header h1{font-size:16px;margin:0;flex:1}
 .fr canvas{width:100%;height:100%;display:block;background:#fff}
 .fr span{position:absolute;left:0;bottom:0;background:var(--k);color:var(--w);font-size:11px;padding:1px 5px;border-top-right-radius:6px}
 .fr.sel{border-color:var(--r)}
-#tools{display:flex;align-items:center;gap:6px;padding:8px 12px;border-top:2px solid var(--line)}
+#tools{display:flex;align-items:center;gap:4px;padding:6px 8px;border-top:2px solid var(--line)}
+#tools button{min-width:40px;height:40px;padding:0 6px}
+#tools .c{width:28px;min-width:28px;height:28px;padding:0;border-radius:50%}
+.cus{background:conic-gradient(#ef4444,#facc15,#4ade80,#22d3ee,#3b82f6,#d946ef,#ef4444)}
+.cus i{width:14px;height:14px;border-radius:50%;background:#38bdf8;border:2px solid var(--w)}
 .sp{flex:1}
 .c{width:32px;min-width:32px;height:32px;border-radius:50%;padding:0}
 .c.sel{outline:2px solid var(--w);outline-offset:2px}
-#menu,#layers{position:fixed;background:var(--k);border:2px solid var(--w);border-radius:14px;padding:8px;opacity:0;pointer-events:none;
+#menu,#layers,#picker{position:fixed;background:var(--k);border:2px solid var(--w);border-radius:14px;padding:8px;opacity:0;pointer-events:none;
 transform:translateY(12px);transition:opacity 200ms var(--out),transform 350ms var(--out)}
-#menu.open,#layers.open{opacity:1;transform:none;pointer-events:auto}
+#menu.open,#layers.open,#picker.open{opacity:1;transform:none;pointer-events:auto}
 #menu{display:flex;flex-direction:column;gap:6px;width:160px;z-index:20}
-#layers{inset-inline:12px;margin-inline:auto;width:min(420px,100% - 24px);bottom:calc(76px + env(safe-area-inset-bottom));max-height:45dvh;overflow:auto;z-index:10}
+#layers,#picker{inset-inline:12px;margin-inline:auto;width:min(420px,100% - 24px);bottom:calc(68px + env(safe-area-inset-bottom));max-height:60dvh;overflow:auto;z-index:10}
+#picker canvas{width:100%;display:block;border-radius:8px;touch-action:none;margin-bottom:8px}
+#picker .ph{margin:0}
+#pv{width:40px;height:40px;border-radius:10px;border:2px solid var(--line);flex:none}
+#picker input{flex:1;min-width:0;height:40px;background:var(--k);color:var(--w);border:2px solid var(--line);border-radius:10px;padding:0 12px;font:inherit}
 .ph{display:flex;align-items:center;gap:8px;margin-bottom:6px}
 .ph b{flex:1}
 #layers small{display:block;margin-bottom:8px;opacity:.7}
@@ -71,6 +79,7 @@ transform:translateY(12px);transition:opacity 200ms var(--out),transform 350ms v
 <symbol id="i-pen" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></symbol>
 <symbol id="i-brush" viewBox="0 0 24 24"><path d="M9.06 11.9l8.07-8.06a2.85 2.85 0 114.03 4.03l-8.06 8.08"/><path d="M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2.5 1.52-2 2.02 1.08 1.1 2.49 2.02 4 2.02 2.2 0 4-1.8 4-4.04a3.01 3.01 0 00-3-3.02z"/></symbol>
 <symbol id="i-eraser" viewBox="0 0 24 24"><path d="M7 21l-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="M5 11l9 9"/></symbol>
+<symbol id="i-bucket" viewBox="0 0 24 24"><path d="M19 11l-8-8-8.6 8.6a2 2 0 000 2.8l5.2 5.2c.8.8 2 .8 2.8 0L19 11z"/><path d="M5 2l5 5"/><path d="M2 13h15"/><path d="M22 20a2 2 0 11-4 0c0-1.7 1.7-3.7 2-4 .3.3 2 2.3 2 4z"/></symbol>
 <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></symbol>
 <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
 <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z"/></symbol>
@@ -91,7 +100,7 @@ transform:translateY(12px);transition:opacity 200ms var(--out),transform 350ms v
   <button id="publish" class="red"><svg class="i"><use href="#i-send"/></svg>Publish</button>
 </header>
 
-<main id="stage"><canvas id="view" width="540" height="540"></canvas></main>
+<main id="stage"><canvas id="view" width="600" height="750"></canvas></main>
 
 <section id="tl">
   <button id="play" aria-label="Play"><svg class="i"><use href="#i-play"/></svg></button>
@@ -103,15 +112,18 @@ transform:translateY(12px);transition:opacity 200ms var(--out),transform 350ms v
 <nav id="tools">
   <button data-tool="pen" class="on" aria-label="Pen"><svg class="i"><use href="#i-pen"/></svg></button>
   <button data-tool="brush" aria-label="Brush"><svg class="i"><use href="#i-brush"/></svg></button>
+  <button data-tool="fill" aria-label="Fill bucket"><svg class="i"><use href="#i-bucket"/></svg></button>
   <button data-tool="eraser" aria-label="Eraser"><svg class="i"><use href="#i-eraser"/></svg></button>
   <span class="sp"></span>
   <button class="c sel" data-c="#0f172a" style="background:#0f172a" aria-label="Black"></button>
   <button class="c" data-c="#ffffff" style="background:#ffffff" aria-label="White"></button>
   <button class="c" data-c="#ef4444" style="background:#ef4444" aria-label="Red"></button>
+  <button class="c cus" id="cus" aria-label="Custom colour"><i></i></button>
   <span class="sp"></span>
   <button id="lbtn" aria-label="Layers"><svg class="i"><use href="#i-layers"/></svg></button>
 </nav>
 
+<aside id="picker" aria-label="Colour picker"><canvas id="sv" width="300" height="170"></canvas><canvas id="hue" width="300" height="28"></canvas><div class="ph"><i id="pv"></i><input id="hex" maxlength="7" spellcheck="false" aria-label="Hex colour"></div></aside>
 <aside id="layers" aria-label="Layers panel"></aside>
 <div id="menu" role="menu"></div>
 <div id="modal"><div id="mbody"></div></div>
@@ -119,7 +131,7 @@ transform:translateY(12px);transition:opacity 200ms var(--out),transform 350ms v
 <script>
 const $=s=>document.querySelector(s);
 const ic=n=>`<svg class="i"><use href="#i-${n}"/></svg>`;
-const W=540,H=540,view=$('#view'),vx=view.getContext('2d'),strip=$('#strip'),panel=$('#layers'),menu=$('#menu');
+const W=600,H=750,view=$('#view'),vx=view.getContext('2d'),strip=$('#strip'),panel=$('#layers'),menu=$('#menu');
 const mk=()=>{const c=document.createElement('canvas');c.width=W;c.height=H;return c};
 let meta=[{lock:false}],frames=[[mk()]],cf=0,cl=0,tool='pen',color='#0f172a',fps=8,timer=null,fmt='mp4';
 const blank=()=>meta.map(mk),tmp=mk(),tx=tmp.getContext('2d');
@@ -153,7 +165,7 @@ function tap(i,b){ // second tap on the same frame within 350 ms opens the menu
 }
 function openMenu(i,b){
   go(i);const r=b.getBoundingClientRect();menu.innerHTML='';
-  const dup=()=>frames[i].map(c=>{const n=mk();n.getContext('2d').drawImage(c,0,0);return n});
+  const dup=()=>frames[i].map(c=>{const n=mk();n.getContext('2d').drawImage(c,0,0);n.d=c.d;return n});
   [['Insert left',()=>{frames.splice(i,0,blank());cf=i}],
    ['Insert right',()=>{frames.splice(i+1,0,blank());cf=i+1}],
    ['Duplicate',()=>{frames.splice(i+1,0,dup());cf=i+1}],
@@ -178,25 +190,40 @@ $('#fps').onclick=e=>{const o=[4,8,12,24];fps=o[(o.indexOf(fps)+1)%o.length];e.c
 let down=false,last;
 const pos=e=>{const r=view.getBoundingClientRect();return[(e.clientX-r.left)*W/r.width,(e.clientY-r.top)*H/r.height]};
 function stroke(a,b){
-  const layer=frames[cf][cl],x=layer.getContext('2d'),lock=meta[cl].lock&&tool!=='eraser';
+  const layer=frames[cf][cl],x=layer.getContext('2d'),base=cl>0?frames[cf][cl-1]:layer,
+    lock=meta[cl].lock&&tool!=='eraser'&&base.d; // an empty base never blocks drawing
   const line=ctx=>{ctx.strokeStyle=color;ctx.lineWidth=tool==='pen'?3:tool==='brush'?18:28;ctx.lineCap=ctx.lineJoin='round';
     ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke()};
   if(tool==='eraser'){x.globalCompositeOperation='destination-out';line(x)}
-  else if(lock&&cl>0){ // clip to the layer below (the base)
+  else if(lock&&cl>0){
     tx.globalCompositeOperation='source-over';tx.clearRect(0,0,W,H);line(tx);
-    tx.globalCompositeOperation='destination-in';tx.drawImage(frames[cf][cl-1],0,0);
-    x.globalCompositeOperation='source-over';x.drawImage(tmp,0,0);
-  }else{x.globalCompositeOperation=lock?'source-atop':'source-over';line(x)} // bottom layer: lock to own pixels
+    tx.globalCompositeOperation='destination-in';tx.drawImage(base,0,0);
+    x.globalCompositeOperation='source-over';x.drawImage(tmp,0,0);layer.d=1;
+  }else{x.globalCompositeOperation=lock?'source-atop':'source-over';line(x);layer.d=1}
   x.globalCompositeOperation='source-over';render();
 }
-view.onpointerdown=e=>{stopPlay();view.setPointerCapture(e.pointerId);down=true;last=pos(e);stroke(last,last)};
+function fill(px,py){ // flood fill what you see, paint the result on the active layer
+  const x=Math.floor(px),y=Math.floor(py);tx.globalCompositeOperation='source-over';comp(tx,frames[cf],W,H);
+  const s=tx.getImageData(0,0,W,H).data,t=(y*W+x)*4,v=new Uint8Array(W*H),
+    df=i=>(i*=4,Math.abs(s[i]-s[t])+Math.abs(s[i+1]-s[t+1])+Math.abs(s[i+2]-s[t+2]));
+  const layer=frames[cf][cl],lx=layer.getContext('2d'),o=lx.getImageData(0,0,W,H),od=o.data,
+    [r,g,b]=[1,3,5].map(i=>parseInt(color.substr(i,2),16)),st=[y*W+x];v[y*W+x]=1;
+  const put=i=>{od[i*4]=r;od[i*4+1]=g;od[i*4+2]=b;od[i*4+3]=255};
+  while(st.length){const i=st.pop(),cx=i%W,cy=(i/W)|0;put(i);
+    for(const[dx,dy]of[[1,0],[-1,0],[0,1],[0,-1]]){const nx=cx+dx,ny=cy+dy;if(nx<0||ny<0||nx>=W||ny>=H)continue;
+      const n=ny*W+nx;if(v[n])continue;v[n]=1;const d=df(n);if(d<=90)st.push(n);else if(d<=500)put(n)}} // soft edges get covered too
+  lx.putImageData(o,0,0);layer.d=1;render();
+}
+view.onpointerdown=e=>{stopPlay();closeSheets();if(tool==="fill"){const p=pos(e);fill(p[0],p[1]);paint(cf);return}
+  view.setPointerCapture(e.pointerId);down=true;last=pos(e);stroke(last,last)};
 view.onpointermove=e=>{if(!down)return;const p=pos(e);stroke(last,p);last=p};
 view.onpointerup=view.onpointercancel=()=>{if(down){down=false;paint(cf)}};
 
 document.querySelectorAll('[data-tool]').forEach(b=>b.onclick=()=>{tool=b.dataset.tool;
   document.querySelectorAll('[data-tool]').forEach(x=>x.classList.toggle('on',x===b))});
-document.querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>{color=b.dataset.c;
-  document.querySelectorAll('[data-c]').forEach(x=>x.classList.toggle('sel',x===b))});
+document.querySelectorAll('.c').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.c').forEach(x=>x.classList.toggle('sel',x===b));
+  if(b.id==='cus'){color=hsv2(...hsv);sheet(picker)}else{color=b.dataset.c;closeSheets()}});
 
 /* ---------- layers ---------- */
 function mv(i,d){const j=i+d;[meta[i],meta[j]]=[meta[j],meta[i]];frames.forEach(f=>[f[i],f[j]]=[f[j],f[i]]);
@@ -208,7 +235,7 @@ function drawLayers(){
   const lk=meta[cl].lock;
   panel.innerHTML=`<div class="ph"><b>Layers</b><button id="addL" aria-label="Add layer">${ic('plus')}</button>
   <button id="mask" role="switch" aria-checked="${lk}" class="${lk?'on':''}">${ic('lock')}Mask lock</button></div>
-  <small>Mask lock keeps shading inside the layer below.</small>`;
+  <small>Mask lock keeps shading inside the layer below once it has drawing.</small>`;
   for(let i=meta.length-1;i>=0;i--){
     const r=document.createElement('div');r.className='row'+(i===cl?' sel':'');
     r.innerHTML=`<button class="nm">Layer ${i+1}${meta[i].lock?ic('lock'):''}</button>
@@ -222,7 +249,34 @@ function drawLayers(){
   $('#addL').onclick=()=>{meta.push({lock:false});frames.forEach(f=>f.push(mk()));cl=meta.length-1;refresh()};
   $('#mask').onclick=()=>{meta[cl].lock=!meta[cl].lock;drawLayers()};
 }
-$('#lbtn').onclick=e=>{const o=panel.classList.toggle('open');e.currentTarget.classList.toggle('on',o);if(o)drawLayers()};
+/* ---------- sheets + custom colour picker ---------- */
+const picker=$('#picker'),sheets=[panel,picker],sv=$('#sv'),sc=sv.getContext('2d'),hu=$('#hue'),hc=hu.getContext('2d'),hex=$('#hex');
+let hsv=[200,.75,.95];
+function closeSheets(){sheets.forEach(s=>s.classList.remove('open'));$('#lbtn').classList.remove('on')}
+function sheet(el){const o=!el.classList.contains('open');closeSheets();if(!o)return;el.classList.add('open');
+  if(el===panel){$('#lbtn').classList.add('on');drawLayers()}else drawPick()}
+$('#lbtn').onclick=()=>sheet(panel);
+function hsv2(h,s,v){const f=n=>{const k=(n+h/60)%6;return v-v*s*Math.max(0,Math.min(k,4-k,1))};
+  return'#'+[f(5),f(3),f(1)].map(x=>Math.round(x*255).toString(16).padStart(2,'0')).join('')}
+function toHsv(h){const[r,g,b]=[1,3,5].map(i=>parseInt(h.substr(i,2),16)/255),m=Math.max(r,g,b),d=m-Math.min(r,g,b);
+  const hh=d?m===r?((g-b)/d+6)%6:m===g?(b-r)/d+2:(r-g)/d+4:0;return[hh*60,m?d/m:0,m]}
+function ring(c,x,y,r){c.beginPath();c.arc(x,y,r,0,7);c.lineWidth=3;c.strokeStyle='#fff';c.stroke();c.lineWidth=1.5;c.strokeStyle='#0f172a';c.beginPath();c.arc(x,y,r+2,0,7);c.stroke()}
+function drawPick(){
+  const w=sv.width,h=sv.height;sc.fillStyle=hsv2(hsv[0],1,1);sc.fillRect(0,0,w,h);
+  let g=sc.createLinearGradient(0,0,w,0);g.addColorStop(0,'#fff');g.addColorStop(1,'rgba(255,255,255,0)');sc.fillStyle=g;sc.fillRect(0,0,w,h);
+  g=sc.createLinearGradient(0,0,0,h);g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(1,'#000');sc.fillStyle=g;sc.fillRect(0,0,w,h);
+  ring(sc,hsv[1]*w,(1-hsv[2])*h,9);
+  g=hc.createLinearGradient(0,0,hu.width,0);for(let i=0;i<=6;i++)g.addColorStop(i/6,`hsl(${i*60},100%,50%)`);
+  hc.fillStyle=g;hc.fillRect(0,0,hu.width,hu.height);ring(hc,hsv[0]/360*hu.width,hu.height/2,8);
+  color=hsv2(...hsv);$('#pv').style.background=color;$('#cus i').style.background=color;
+  if(document.activeElement!==hex)hex.value=color;
+}
+const drag=(el,fn)=>{const f=e=>{const r=el.getBoundingClientRect();
+  fn(Math.min(1,Math.max(0,(e.clientX-r.left)/r.width)),Math.min(1,Math.max(0,(e.clientY-r.top)/r.height)));drawPick()};
+  el.onpointerdown=e=>{el.setPointerCapture(e.pointerId);el._d=1;f(e)};el.onpointermove=e=>el._d&&f(e);el.onpointerup=el.onpointercancel=()=>el._d=0};
+drag(sv,(x,y)=>{hsv[1]=x;hsv[2]=1-y});drag(hu,x=>{hsv[0]=Math.min(359.9,x*360)});
+hex.oninput=()=>{if(/^#[0-9a-f]{6}$/i.test(hex.value)){hsv=toHsv(hex.value);drawPick()}};
+$('#cus i').style.background=hsv2(...hsv);
 
 /* ---------- format switch + publish ---------- */
 const fmtB=$('#fmt');
