@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Album · Discord Media Host</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 20px; }
+        header { display: flex; align-items: center; gap: 12px; max-width: 900px; margin: 0 auto 8px; }
+        header a { color: #38bdf8; text-decoration: none; font-weight: bold; }
+        h2 { margin: 0; color: #38bdf8; font-size: 1.4rem; flex: 1; }
+        .note { max-width: 900px; margin: 0 auto 16px; color: #94a3b8; font-size: 0.85rem; }
+        .grid { max-width: 900px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+        .item { background: #1e293b; border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+        .item video, .item img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; background: #0f172a; }
+        .time { color: #94a3b8; font-size: 0.75rem; }
+        button.share {
+            background: #0284c7; color: #fff; border: none; border-radius: 8px; padding: 10px;
+            font-weight: bold; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;
+            transition: transform 450ms cubic-bezier(0.34, 1.56, 0.64, 1), background 150ms;
+        }
+        button.share:hover { background: #0ea5e9; }
+        button.share:active { transform: scale(0.95); transition: transform 100ms cubic-bezier(0.16, 1, 0.3, 1); }
+        button.share.done { background: #16a34a; }
+        button.share svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+        .empty { max-width: 900px; margin: 40px auto; text-align: center; color: #94a3b8; }
+        .empty a { color: #38bdf8; }
+        @media (prefers-reduced-motion: reduce) { * { transition-duration: 0.01ms !important; } }
+    </style>
+</head>
+<body>
+    <header>
+        <a href="/">← Home</a>
+        <h2>Album</h2>
+        <a href="/draw.html">Draw</a>
+    </header>
+    <p class="note">Files are deleted automatically 24 hours after upload.</p>
+    <div class="grid" id="grid"></div>
+    <div class="empty" id="empty" hidden>Nothing here yet. <a href="/">Upload a file</a> or <a href="/draw.html">draw an animation</a>.</div>
+
+    <script>
+        const grid = document.getElementById('grid');
+        const empty = document.getElementById('empty');
+        const icon = '<svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 012-2h9"/></svg>';
+
+        async function copy(text) {
+            try { await navigator.clipboard.writeText(text); }
+            catch (e) {
+                const t = document.createElement('input');
+                t.value = text; document.body.append(t); t.select();
+                document.execCommand('copy'); t.remove();
+            }
+        }
+
+        function card(m) {
+            const el = document.createElement('div');
+            el.className = 'item';
+            const media = m.kind === 'gif'
+                ? `<img src="${m.url}" alt="GIF" loading="lazy">`
+                : `<video src="${m.url}#t=0.1" muted loop playsinline controls preload="metadata"></video>`;
+            el.innerHTML = `${media}<span class="time">${new Date(m.createdAt).toLocaleString()}</span><button class="share">${icon}Share</button>`;
+            const b = el.querySelector('button');
+            b.onclick = async () => {
+                await copy(m.url);
+                b.classList.add('done'); b.textContent = 'Link copied';
+                setTimeout(() => { b.classList.remove('done'); b.innerHTML = icon + 'Share'; }, 1500);
+            };
+            return el;
+        }
+
+        fetch('/api/media')
+            .then(r => r.json())
+            .then(list => {
+                if (!Array.isArray(list) || !list.length) { empty.hidden = false; return; }
+                list.forEach(m => grid.append(card(m)));
+            })
+            .catch(() => { empty.hidden = false; empty.textContent = 'Could not load the album. Refresh to try again.'; });
+    </script>
+</body>
+</html>
