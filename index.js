@@ -121,7 +121,7 @@ app.post('/upload', upload.single('video'), async (req, res) => {
     } catch (e) {
         console.error(e);
         fs.rm(req.file.path, { force: true }, () => {});
-        res.status(500).json({ error: 'Upload failed. Try again.' });
+        res.status(500).json({ error: 'Upload failed: ' + (e.message || e) + '.' });
     }
 });
 
@@ -165,7 +165,7 @@ app.post('/publish', frameUpload.array('frames', 200), async (req, res) => {
         res.json({ url: fullUrl(req, name) });
     } catch (e) {
         console.error(e);
-        res.status(500).json({ error: 'Could not publish. Try again.' });
+        res.status(500).json({ error: 'Could not publish: ' + (e.message || e) + '.' });
     } finally {
         files.forEach(f => fs.rm(f.path, { force: true }, () => {}));
         fs.rm(dir, { recursive: true, force: true }, () => {});
