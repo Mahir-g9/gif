@@ -3,105 +3,132 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Discord Media Host</title>
+<title>Convert · Discord Media Host</title>
 <style>
 :root{--bg:#17111f;--card:#261c33;--rose:#b83a63;--plum:#5b3a8c;--text:#ffffff;--muted:#c9bcd8;
 --out:cubic-bezier(.16,1,.3,1);--spring:cubic-bezier(.34,1.56,.64,1)}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;
-background:var(--bg);color:var(--text);font:500 15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-.card{width:100%;max-width:420px;background:var(--card);padding:28px 24px;border-radius:44px 8px 44px 8px}
-.logo{display:block;width:56px;height:56px;margin:0 auto 12px}
-h1{margin:0;text-align:center;font-size:1.4rem}
-.sub{margin:6px 0 20px;text-align:center;color:var(--muted);font-size:.9rem}
-.nav{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
-.btn,button{font:inherit;font-weight:700;color:var(--text);border:0;cursor:pointer;text-decoration:none;
-display:flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 16px;width:100%;
-border-radius:20px 4px 20px 4px;background:var(--plum);
-transition:transform 450ms var(--spring),opacity 150ms}
+body{margin:0;padding:20px;background:var(--bg);color:var(--text);font:500 15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.card{max-width:460px;margin:0 auto;background:var(--card);padding:24px 20px;border-radius:44px 8px 44px 8px}
+header{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+h1{margin:0;flex:1;font-size:1.3rem}
+.sub{margin:0 0 16px;color:var(--muted);font-size:.9rem}
+.btn,button{font:inherit;font-weight:700;color:var(--text);border:0;cursor:pointer;text-decoration:none;display:flex;align-items:center;justify-content:center;gap:8px;
+min-height:46px;padding:0 14px;border-radius:16px 4px 16px 4px;background:var(--plum);transition:transform 450ms var(--spring),opacity 150ms}
 .btn:active,button:active{transform:scale(.95);transition:transform 100ms var(--out)}
-.btn:focus-visible,button:focus-visible,input:focus-visible{outline:2px solid var(--text);outline-offset:2px}
-.rose{background:var(--rose)}
-button:disabled{opacity:.4;cursor:not-allowed}
-svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.btn:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--text);outline-offset:2px}
+button.full,.btn.full{width:100%}.rose{background:var(--rose)}button:disabled{opacity:.4;cursor:not-allowed}
+button.seg.on{background:var(--rose)}
+svg.i{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
 input[type=file]{display:none}
-.drop{display:flex;align-items:center;justify-content:center;gap:8px;min-height:84px;margin:0 0 12px;padding:12px;text-align:center;
-border:2px dashed var(--plum);border-radius:28px 6px 28px 6px;cursor:pointer;color:var(--muted);word-break:break-all}
+.drop{display:flex;align-items:center;justify-content:center;gap:8px;min-height:72px;margin-bottom:14px;padding:10px;text-align:center;border:2px dashed var(--plum);border-radius:28px 6px 28px 6px;cursor:pointer;color:var(--muted);word-break:break-all}
+label.f{display:block;margin:12px 0 4px;color:var(--muted);font-size:.85rem}
+label.f b{float:right;color:var(--text)}
+select,input[type=text]{width:100%;height:44px;padding:0 12px;background:var(--bg);color:var(--text);border:2px solid var(--plum);border-radius:14px 4px 14px 4px;font:inherit}
+input[type=range]{width:100%;accent-color:#b83a63}
+input[type=color]{width:100%;height:44px;padding:2px;background:var(--bg);border:2px solid var(--plum);border-radius:14px 4px 14px 4px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+#custom{display:none}
 .status{min-height:1.4em;margin:12px 0 0;text-align:center;color:var(--muted);font-size:.9rem}
 .status.err{color:var(--text);background:var(--rose);border-radius:12px 3px 12px 3px;padding:6px 10px}
-#preview{display:none;margin-top:16px;text-align:center}
-#preview video,#preview img{max-width:100%;max-height:220px;border-radius:20px 4px 20px 4px}
-#result{display:none;margin-top:16px}
-#result input{width:100%;height:48px;margin-bottom:10px;padding:0 14px;background:var(--bg);color:var(--text);
-border:2px solid var(--plum);border-radius:16px 4px 16px 4px;font:inherit}
-.note{margin:16px 0 0;text-align:center;color:var(--muted);font-size:.8rem}
+#fetched{margin:10px 0 14px}
+#fetched video{width:100%;max-height:220px;border-radius:20px 4px 20px 4px;background:var(--bg);margin-bottom:8px}
+#result{display:none;margin-top:14px}
+#stage{display:flex;align-items:center;justify-content:center;min-height:160px;padding:10px;margin:8px 0;border-radius:24px 5px 24px 5px;background:var(--bg)}
+#stage.white{background:#ffffff}
+#stage img{max-width:100%;max-height:260px}
+.bg{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
 @media (prefers-reduced-motion:reduce){*{transition-duration:.01ms!important}}
 </style>
 </head>
 <body>
 <main class="card">
-  <svg class="logo" viewBox="0 0 64 64" aria-hidden="true">
-    <g fill="#b83a63"><ellipse cx="32" cy="16" rx="8" ry="14"/><ellipse cx="32" cy="48" rx="8" ry="14"/></g>
-    <g fill="#5b3a8c"><ellipse cx="16" cy="32" rx="14" ry="8"/><ellipse cx="48" cy="32" rx="14" ry="8"/></g>
-    <circle cx="32" cy="32" r="6" fill="#17111f"/>
-  </svg>
-  <h1>Discord Media Host</h1>
-  <p class="sub">Upload a video or GIF and get a direct link.</p>
+  <header>
+    <a class="btn" href="/" aria-label="Home"><svg class="i" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></a>
+    <h1>Convert to GIF</h1>
+    <a class="btn" href="/album.html">Album</a>
+  </header>
+  <p class="sub">MP4 or GIF in, auto-playing GIF out. Paste a video link or choose a file. Optionally remove a background colour. GIFs are kept under 8 MB.</p>
 
-  <div class="nav">
-    <a class="btn rose" href="/draw.html"><svg class="i" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>Draw</a>
-    <a class="btn" href="/album.html"><svg class="i" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></svg>Album</a>
-    <a class="btn" href="/convert.html" style="grid-column:1/-1"><svg class="i" viewBox="0 0 24 24"><path d="M4 8h12l-3-3M20 16H8l3 3"/></svg>Convert to transparent GIF</a>
+  <label class="f" for="url">Video link (YouTube, Facebook, TikTok, X and more)</label>
+  <div class="row" style="grid-template-columns:1fr auto auto"><input type="text" id="url" placeholder="https://..." inputmode="url" autocomplete="off"><button id="paste" aria-label="Paste link"><svg class="i" viewBox="0 0 24 24"><rect x="6" y="4" width="12" height="17" rx="2"/><path d="M9 4h6v3H9z"/></svg></button><button class="rose" id="fetch">Fetch</button></div>
+  <div id="fetched" hidden><video id="fv" controls playsinline></video><p class="sub" id="ftitle" style="margin:0 0 8px"></p>
+    <a class="btn full" id="fdl" download><svg class="i" viewBox="0 0 24 24"><path d="M12 4v12M7 11l5 5 5-5M5 20h14"/></svg>Download video</a>
+    <a class="btn full" id="fmp3" download style="margin-top:8px"><svg class="i" viewBox="0 0 24 24"><path d="M9 18V6l10-2v12"/><circle cx="6" cy="18" r="3"/><circle cx="16" cy="16" r="3"/></svg>Download MP3</a></div>
+  <p class="sub" style="margin:12px 0 8px">Or choose a file:</p>
+  <label class="drop" id="drop"><svg class="i" viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></svg><span id="fname">Choose MP4 or GIF</span>
+    <input type="file" id="file" accept="video/*,image/gif"></label>
+
+  <label class="f" for="key">Remove background colour</label>
+  <select id="key"><option value="00ff00">Green screen</option><option value="ffffff">White</option><option value="custom">Custom colour</option><option value="none">None (just convert)</option></select>
+  <div id="custom"><label class="f" for="ckey">Colour to remove</label><input type="color" id="ckey" value="#00ff00"></div>
+
+  <label class="f" for="sim">Colour match <b id="simv">30%</b></label><input type="range" id="sim" min="5" max="60" value="30">
+  <label class="f" for="blend">Edge softness <b id="blendv">10%</b></label><input type="range" id="blend" min="0" max="50" value="10">
+  <label class="f" for="shrink">Shrink edges <b id="shrinkv">1 px</b></label><input type="range" id="shrink" min="0" max="4" value="1">
+  <label class="f" for="border">Border width <b id="borderv">2 px</b></label><input type="range" id="border" min="0" max="8" value="2">
+  <label class="f" for="bcolor">Border colour</label><input type="color" id="bcolor" value="#ffffff">
+
+  <div class="row">
+    <div><label class="f" for="width">Width</label><select id="width"><option value="240">240 px</option><option value="360">360 px</option><option value="480" selected>480 px</option><option value="640">640 px</option></select></div>
+    <div><label class="f" for="fps">Frame rate</label><select id="fps"><option value="8">8 fps</option><option value="12" selected>12 fps</option><option value="15">15 fps</option><option value="20">20 fps</option></select></div>
   </div>
 
-  <form id="uploadForm">
-    <label class="drop" id="fileLabel"><svg class="i" viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></svg><span id="fileText">Choose MP4 or GIF</span>
-      <input type="file" id="videoInput" name="video" accept="video/*,image/gif"></label>
-    <button type="submit" class="rose" id="uploadBtn" disabled>Upload and get link</button>
-  </form>
+  <button class="full rose" id="go" style="margin-top:16px" disabled>Convert</button>
   <p class="status" id="status" role="status"></p>
   <div id="ld" style="margin-top:12px"></div>
 
-  <div id="preview"><video id="previewMedia" controls autoplay loop muted playsinline></video><img id="previewImg" alt="Uploaded GIF preview" hidden></div>
-
   <div id="result">
-    <input type="text" id="linkOutput" readonly aria-label="Direct link">
-    <button id="copyBtn" class="rose" type="button"><svg class="i" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 012-2h9"/></svg><span>Copy link</span></button>
+    <div class="bg"><button class="seg on" data-bg="dark">Dark preview</button><button class="seg" data-bg="white">White preview</button></div>
+    <div id="stage"><img id="out" alt="Converted GIF"></div>
+    <input type="text" id="link" readonly aria-label="Direct link" style="margin-bottom:10px">
+    <a class="btn full" id="gdl" download style="margin-bottom:10px"><svg class="i" viewBox="0 0 24 24"><path d="M12 4v12M7 11l5 5 5-5M5 20h14"/></svg>Download GIF</a>
+    <button class="full rose" id="copy"><svg class="i" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 012-2h9"/></svg><span>Copy link</span></button>
   </div>
-  <p class="note">Files are deleted automatically after 24 hours.</p>
 </main>
-
 <script src="/loader.js"></script>
 <script>
-const $=id=>document.getElementById(id);
-const input=$('videoInput'),btn=$('uploadBtn'),status=$('status'),out=$('linkOutput');
-const say=(t,err)=>{status.textContent=t;status.classList.toggle('err',!!err)};
+const $=id=>document.getElementById(id),say=(t,e)=>{$('status').textContent=t;$('status').classList.toggle('err',!!e)};
+let src=null;
+const unit={sim:'%',blend:'%',shrink:' px',border:' px'};
+for(const k in unit){const el=$(k);el.oninput=()=>$(k+'v').textContent=el.value+unit[k]}
+$('key').onchange=()=>{$('custom').style.display=$('key').value==='custom'?'block':'none'};
+$('file').onchange=()=>{const f=$('file').files[0];if(!f)return;$('fname').textContent=f.name;src=null;$('fetched').hidden=true;$('go').disabled=false;say('')};
+document.querySelectorAll('[data-bg]').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('[data-bg]').forEach(x=>x.classList.toggle('on',x===b));$('stage').classList.toggle('white',b.dataset.bg==='white')});
 
-input.addEventListener('change',()=>{
-  const f=input.files[0];if(!f)return;
-  $('fileText').textContent=f.name;btn.disabled=false;say('');
-});
-
-$('uploadForm').addEventListener('submit',async e=>{
-  e.preventDefault();if(!input.files[0])return;
-  const fd=new FormData();fd.append('video',input.files[0]);
-  btn.disabled=true;say('');$('result').style.display=$('preview').style.display='none';
+$('paste').onclick=async()=>{
+  try{const t=await navigator.clipboard.readText();if(t){$('url').value=t.trim();say('Link pasted. Tap Fetch.')}}
+  catch(e){$('url').focus();say('Quick paste was blocked. Long-press the box and tap Paste.',true)}
+};
+$('fetch').onclick=async()=>{
+  const u=$('url').value.trim();if(!u)return;
+  $('fetch').disabled=true;$('fetched').hidden=true;say('');
   try{
-    const data=await Loader.run($('ld'),{url:'/upload',body:fd,upload:true,est:8});
-    out.value=data.url;
-    const gif=data.url.endsWith('.gif');
-    $('previewMedia').hidden=gif;$('previewImg').hidden=!gif;
-    if(gif)$('previewImg').src=data.url;else $('previewMedia').src=data.url;
-    $('preview').style.display='block';$('result').style.display='block';say('Your link is ready.');
-  }catch(err){say(err.message||'Network error during upload.',true)}
-  finally{btn.disabled=false}
-});
-
-$('copyBtn').addEventListener('click',async()=>{
-  try{await navigator.clipboard.writeText(out.value)}catch(_){out.select();document.execCommand('copy')}
-  const s=$('copyBtn').querySelector('span');s.textContent='Copied';setTimeout(()=>s.textContent='Copy link',1500);
-});
-out.addEventListener('click',()=>out.select());
+    const d=await Loader.run($('ld'),{url:'/api/fetch',json:true,body:JSON.stringify({url:u}),est:45});
+    src=d.name;$('file').value='';$('fname').textContent='Choose MP4 or GIF';
+    $('fv').src=d.url;$('ftitle').textContent=d.title+' ('+(d.size/1048576).toFixed(1)+' MB)';$('fdl').href=d.url+'?dl=1';$('fmp3').href=d.url.replace('/uploads/','/audio/');
+    $('fetched').hidden=false;$('go').disabled=false;say('Video ready. Download it or convert it to a GIF below.');
+  }catch(e){say(e.message||'Network error.',true)}
+  finally{$('fetch').disabled=false}
+};
+$('go').onclick=async()=>{
+  const f=$('file').files[0];if(!f&&!src)return;
+  const key=$('key').value==='custom'?$('ckey').value.slice(1):$('key').value,fd=new FormData();
+  if(f)fd.append('file',f);else fd.append('src',src);fd.append('key',key);fd.append('sim',$('sim').value/100);fd.append('blend',$('blend').value/100);
+  fd.append('shrink',$('shrink').value);fd.append('border',$('border').value);fd.append('bcolor',$('bcolor').value.slice(1));
+  fd.append('width',$('width').value);fd.append('fps',$('fps').value);
+  $('go').disabled=true;$('result').style.display='none';say('');
+  try{
+    const d=await Loader.run($('ld'),{url:'/convert',body:fd,upload:!!f,est:30});
+    $('out').src=d.url;$('link').value=d.url;$('gdl').href=d.url+'?dl=1';$('result').style.display='block';
+    say('Done. '+(d.size/1048576).toFixed(1)+' MB');
+  }catch(e){say(e.message||'Network error.',true)}
+  finally{$('go').disabled=false}
+};
+$('copy').onclick=async()=>{const l=$('link');try{await navigator.clipboard.writeText(l.value)}catch(_){l.select();document.execCommand('copy')}
+  const s=$('copy').querySelector('span');s.textContent='Copied';setTimeout(()=>s.textContent='Copy link',1500)};
+$('link').onclick=()=>$('link').select();
 </script>
 </body>
 </html>
