@@ -60,6 +60,7 @@ border:2px solid var(--plum);border-radius:16px 4px 16px 4px;font:inherit}
     <button type="submit" class="rose" id="uploadBtn" disabled>Upload and get link</button>
   </form>
   <p class="status" id="status" role="status"></p>
+  <div id="ld" style="margin-top:12px"></div>
 
   <div id="preview"><video id="previewMedia" controls autoplay loop muted playsinline></video><img id="previewImg" alt="Uploaded GIF preview" hidden></div>
 
@@ -70,6 +71,7 @@ border:2px solid var(--plum);border-radius:16px 4px 16px 4px;font:inherit}
   <p class="note">Files are deleted automatically after 24 hours.</p>
 </main>
 
+<script src="/loader.js"></script>
 <script>
 const $=id=>document.getElementById(id);
 const input=$('videoInput'),btn=$('uploadBtn'),status=$('status'),out=$('linkOutput');
@@ -83,10 +85,9 @@ input.addEventListener('change',()=>{
 $('uploadForm').addEventListener('submit',async e=>{
   e.preventDefault();if(!input.files[0])return;
   const fd=new FormData();fd.append('video',input.files[0]);
-  btn.disabled=true;say('Uploading, please wait...');$('result').style.display=$('preview').style.display='none';
+  btn.disabled=true;say('');$('result').style.display=$('preview').style.display='none';
   try{
-    const res=await fetch('/upload',{method:'POST',body:fd}),data=await res.json();
-    if(!res.ok)throw new Error(data.error||'Upload failed.');
+    const data=await Loader.run($('ld'),{url:'/upload',body:fd,upload:true,est:8});
     out.value=data.url;
     const gif=data.url.endsWith('.gif');
     $('previewMedia').hidden=gif;$('previewImg').hidden=!gif;
