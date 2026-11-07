@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Convert · Discord Media Host</title>
+<style>
+:root{--bg:#17111f;--card:#261c33;--rose:#b83a63;--plum:#5b3a8c;--text:#ffffff;--muted:#c9bcd8;
+--out:cubic-bezier(.16,1,.3,1);--spring:cubic-bezier(.34,1.56,.64,1)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;padding:20px;background:var(--bg);color:var(--text);font:500 15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.card{max-width:460px;margin:0 auto;background:var(--card);padding:24px 20px;border-radius:44px 8px 44px 8px}
+header{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+h1{margin:0;flex:1;font-size:1.3rem}
+.sub{margin:0 0 16px;color:var(--muted);font-size:.9rem}
+.btn,button{font:inherit;font-weight:700;color:var(--text);border:0;cursor:pointer;text-decoration:none;display:flex;align-items:center;justify-content:center;gap:8px;
+min-height:46px;padding:0 14px;border-radius:16px 4px 16px 4px;background:var(--plum);transition:transform 450ms var(--spring),opacity 150ms}
+.btn:active,button:active{transform:scale(.95);transition:transform 100ms var(--out)}
+.btn:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--text);outline-offset:2px}
+button.full{width:100%}.rose{background:var(--rose)}button:disabled{opacity:.4;cursor:not-allowed}
+button.seg.on{background:var(--rose)}
+svg.i{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+input[type=file]{display:none}
+.drop{display:flex;align-items:center;justify-content:center;gap:8px;min-height:72px;margin-bottom:14px;padding:10px;text-align:center;border:2px dashed var(--plum);border-radius:28px 6px 28px 6px;cursor:pointer;color:var(--muted);word-break:break-all}
+label.f{display:block;margin:12px 0 4px;color:var(--muted);font-size:.85rem}
+label.f b{float:right;color:var(--text)}
+select,input[type=text]{width:100%;height:44px;padding:0 12px;background:var(--bg);color:var(--text);border:2px solid var(--plum);border-radius:14px 4px 14px 4px;font:inherit}
+input[type=range]{width:100%;accent-color:#b83a63}
+input[type=color]{width:100%;height:44px;padding:2px;background:var(--bg);border:2px solid var(--plum);border-radius:14px 4px 14px 4px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+#custom{display:none}
+.status{min-height:1.4em;margin:12px 0 0;text-align:center;color:var(--muted);font-size:.9rem}
+.status.err{color:var(--text);background:var(--rose);border-radius:12px 3px 12px 3px;padding:6px 10px}
+#result{display:none;margin-top:14px}
+#stage{display:flex;align-items:center;justify-content:center;min-height:160px;padding:10px;margin:8px 0;border-radius:24px 5px 24px 5px;background:var(--bg)}
+#stage.white{background:#ffffff}
+#stage img{max-width:100%;max-height:260px}
+.bg{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+@media (prefers-reduced-motion:reduce){*{transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<main class="card">
+  <header>
+    <a class="btn" href="/" aria-label="Home"><svg class="i" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></a>
+    <h1>Convert to GIF</h1>
+    <a class="btn" href="/album.html">Album</a>
+  </header>
+  <p class="sub">MP4 or GIF in, auto-playing GIF out. Optionally remove a background colour. Output is kept under 8 MB.</p>
+
+  <label class="drop" id="drop"><svg class="i" viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></svg><span id="fname">Choose MP4 or GIF</span>
+    <input type="file" id="file" accept="video/*,image/gif"></label>
+
+  <label class="f" for="key">Remove background colour</label>
+  <select id="key"><option value="00ff00">Green screen</option><option value="ffffff">White</option><option value="custom">Custom colour</option><option value="none">None (just convert)</option></select>
+  <div id="custom"><label class="f" for="ckey">Colour to remove</label><input type="color" id="ckey" value="#00ff00"></div>
+
+  <label class="f" for="sim">Colour match <b id="simv">30%</b></label><input type="range" id="sim" min="5" max="60" value="30">
+  <label class="f" for="blend">Edge softness <b id="blendv">10%</b></label><input type="range" id="blend" min="0" max="50" value="10">
+  <label class="f" for="shrink">Shrink edges <b id="shrinkv">1 px</b></label><input type="range" id="shrink" min="0" max="4" value="1">
+  <label class="f" for="border">Border width <b id="borderv">2 px</b></label><input type="range" id="border" min="0" max="8" value="2">
+  <label class="f" for="bcolor">Border colour</label><input type="color" id="bcolor" value="#ffffff">
+
+  <div class="row">
+    <div><label class="f" for="width">Width</label><select id="width"><option value="240">240 px</option><option value="360">360 px</option><option value="480" selected>480 px</option><option value="640">640 px</option></select></div>
+    <div><label class="f" for="fps">Frame rate</label><select id="fps"><option value="8">8 fps</option><option value="12" selected>12 fps</option><option value="15">15 fps</option><option value="20">20 fps</option></select></div>
+  </div>
+
+  <button class="full rose" id="go" style="margin-top:16px" disabled>Convert</button>
+  <p class="status" id="status" role="status"></p>
+
+  <div id="result">
+    <div class="bg"><button class="seg on" data-bg="dark">Dark preview</button><button class="seg" data-bg="white">White preview</button></div>
+    <div id="stage"><img id="out" alt="Converted GIF"></div>
+    <input type="text" id="link" readonly aria-label="Direct link" style="margin-bottom:10px">
+    <button class="full rose" id="copy"><svg class="i" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 012-2h9"/></svg><span>Copy link</span></button>
+  </div>
+</main>
+<script>
+const $=id=>document.getElementById(id),say=(t,e)=>{$('status').textContent=t;$('status').classList.toggle('err',!!e)};
+const unit={sim:'%',blend:'%',shrink:' px',border:' px'};
+for(const k in unit){const el=$(k);el.oninput=()=>$(k+'v').textContent=el.value+unit[k]}
+$('key').onchange=()=>{$('custom').style.display=$('key').value==='custom'?'block':'none'};
+$('file').onchange=()=>{const f=$('file').files[0];if(!f)return;$('fname').textContent=f.name;$('go').disabled=false;say('')};
+document.querySelectorAll('[data-bg]').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('[data-bg]').forEach(x=>x.classList.toggle('on',x===b));$('stage').classList.toggle('white',b.dataset.bg==='white')});
+
+$('go').onclick=async()=>{
+  const f=$('file').files[0];if(!f)return;
+  const key=$('key').value==='custom'?$('ckey').value.slice(1):$('key').value,fd=new FormData();
+  fd.append('file',f);fd.append('key',key);fd.append('sim',$('sim').value/100);fd.append('blend',$('blend').value/100);
+  fd.append('shrink',$('shrink').value);fd.append('border',$('border').value);fd.append('bcolor',$('bcolor').value.slice(1));
+  fd.append('width',$('width').value);fd.append('fps',$('fps').value);
+  $('go').disabled=true;$('result').style.display='none';say('Converting. This can take a minute on the free server...');
+  try{
+    const res=await fetch('/convert',{method:'POST',body:fd}),d=await res.json();
+    if(!res.ok)throw new Error(d.error||'Conversion failed.');
+    $('out').src=d.url;$('link').value=d.url;$('result').style.display='block';
+    say('Done. '+(d.size/1048576).toFixed(1)+' MB');
+  }catch(e){say(e.message||'Network error.',true)}
+  finally{$('go').disabled=false}
+};
+$('copy').onclick=async()=>{const l=$('link');try{await navigator.clipboard.writeText(l.value)}catch(_){l.select();document.execCommand('copy')}
+  const s=$('copy').querySelector('span');s.textContent='Copied';setTimeout(()=>s.textContent='Copy link',1500)};
+$('link').onclick=()=>$('link').select();
+</script>
+</body>
+</html>
