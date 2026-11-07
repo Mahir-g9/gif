@@ -82,6 +82,7 @@ transform:translateY(12px);transition:opacity 200ms var(--out),transform 350ms v
 <symbol id="i-bucket" viewBox="0 0 24 24"><path d="M19 11l-8-8-8.6 8.6a2 2 0 000 2.8l5.2 5.2c.8.8 2 .8 2.8 0L19 11z"/><path d="M5 2l5 5"/><path d="M2 13h15"/><path d="M22 20a2 2 0 11-4 0c0-1.7 1.7-3.7 2-4 .3.3 2 2.3 2 4z"/></symbol>
 <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 010 11H11"/></symbol>
 <symbol id="i-redo" viewBox="0 0 24 24"><path d="M15 14l5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 000 11H13"/></symbol>
+<symbol id="i-shapes" viewBox="0 0 24 24"><rect x="3" y="12" width="9" height="9" rx="1"/><circle cx="16.5" cy="7.5" r="4.5"/></symbol>
 <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></symbol>
 <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
 <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z"/></symbol>
@@ -100,7 +101,7 @@ transform:translateY(12px);transition:opacity 200ms var(--out),transform 350ms v
   <button id="undo" aria-label="Undo" disabled style="min-width:40px"><svg class="i"><use href="#i-undo"/></svg></button>
   <button id="redo" aria-label="Redo" disabled style="min-width:40px"><svg class="i"><use href="#i-redo"/></svg></button>
   <span class="sp"></span>
-  <button id="fmt" class="sw" role="switch" aria-checked="false" aria-label="Export format: MP4 or GIF"><i></i><span>MP4</span><span>GIF</span></button>
+  <button id="fmt" class="sw" role="switch" aria-checked="true" aria-label="Export format: MP4 or GIF"><i></i><span>MP4</span><span>GIF</span></button>
   <button id="publish" class="red"><svg class="i"><use href="#i-send"/></svg>Publish</button>
 </header>
 
@@ -114,9 +115,9 @@ transform:translateY(12px);transition:opacity 200ms var(--out),transform 350ms v
 </section>
 
 <nav id="tools">
-  <button data-tool="pen" class="on" aria-label="Pen"><svg class="i"><use href="#i-pen"/></svg></button>
-  <button data-tool="brush" aria-label="Brush"><svg class="i"><use href="#i-brush"/></svg></button>
+  <button id="brushB" data-tool="pen" class="on" aria-label="Brush (double-tap for brushes)"><svg class="i"><use href="#i-brush"/></svg></button>
   <button data-tool="fill" aria-label="Fill bucket"><svg class="i"><use href="#i-bucket"/></svg></button>
+  <button id="shapeB" data-tool="shape" aria-label="Shapes"><svg class="i"><use href="#i-shapes"/></svg></button>
   <button data-tool="eraser" aria-label="Eraser"><svg class="i"><use href="#i-eraser"/></svg></button>
   <span class="sp"></span>
   <button class="c sel" data-c="#0f172a" style="background:#0f172a" aria-label="Black"></button>
@@ -137,12 +138,12 @@ const $=s=>document.querySelector(s);
 const ic=n=>`<svg class="i"><use href="#i-${n}"/></svg>`;
 const W=600,H=750,view=$('#view'),vx=view.getContext('2d'),strip=$('#strip'),panel=$('#layers'),menu=$('#menu');
 const mk=()=>{const c=document.createElement('canvas');c.width=W;c.height=H;return c};
-let meta=[{lock:false}],frames=[[mk()]],cf=0,cl=0,tool='pen',color='#0f172a',fps=8,timer=null,fmt='mp4';
+let meta=[{lock:false}],frames=[[mk()]],cf=0,cl=0,tool='pen',color='#0f172a',fps=8,timer=null,fmt='gif';
 const blank=()=>meta.map(mk),tmp=mk(),tx=tmp.getContext('2d');
 
 function comp(ctx,list,w,h){ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h);list.forEach(c=>ctx.drawImage(c,0,0,w,h))}
 const render=()=>comp(vx,frames[cf],W,H);
-function paint(i){const c=strip.children[i]?.querySelector('canvas');if(c)comp(c.getContext('2d'),frames[i],c.width,c.height)}
+function paint(i){schedule();const c=strip.children[i]?.querySelector('canvas');if(c)comp(c.getContext('2d'),frames[i],c.width,c.height)}
 
 /* ---------- timeline ---------- */
 function drawStrip(){
@@ -188,16 +189,15 @@ $('#add').onclick=()=>{stopPlay();frames.push(blank());cf=frames.length-1;drawSt
 const playB=$('#play');
 function stopPlay(){if(timer){clearInterval(timer);timer=null;playB.innerHTML=ic('play')}}
 playB.onclick=()=>{if(timer)return stopPlay();playB.innerHTML=ic('pause');timer=setInterval(()=>go((cf+1)%frames.length),1000/fps)};
-$('#fps').onclick=e=>{const o=[4,8,12,24];fps=o[(o.indexOf(fps)+1)%o.length];e.currentTarget.textContent=fps+' fps';if(timer){stopPlay();playB.onclick()}};
+$('#fps').onclick=e=>{const o=[4,8,12,24];fps=o[(o.indexOf(fps)+1)%o.length];e.currentTarget.textContent=fps+' fps';schedule();if(timer){stopPlay();playB.onclick()}};
 
 /* ---------- drawing ---------- */
 let down=false,last;
 const pos=e=>{const r=view.getBoundingClientRect();return[(e.clientX-r.left)*W/r.width,(e.clientY-r.top)*H/r.height]};
 function stroke(a,b){
   const layer=frames[cf][cl],x=layer.getContext('2d'),base=cl>0?frames[cf][cl-1]:layer,
-    lock=meta[cl].lock&&tool!=='eraser'&&base.d; // an empty base never blocks drawing
-  const line=ctx=>{ctx.strokeStyle=color;ctx.lineWidth=tool==='pen'?3:tool==='brush'?18:28;ctx.lineCap=ctx.lineJoin='round';
-    ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke()};
+    lock=meta[cl].lock&&tool!=='eraser'&&base.d; touch(layer); // an empty base never blocks drawing
+  const line=ctx=>dab(ctx,a,b);
   if(tool==='eraser'){x.globalCompositeOperation='destination-out';line(x)}
   else if(lock&&cl>0){
     tx.globalCompositeOperation='source-over';tx.clearRect(0,0,W,H);line(tx);
@@ -216,15 +216,21 @@ function fill(px,py){ // flood fill what you see, paint the result on the active
   while(st.length){const i=st.pop(),cx=i%W,cy=(i/W)|0;put(i);
     for(const[dx,dy]of[[1,0],[-1,0],[0,1],[0,-1]]){const nx=cx+dx,ny=cy+dy;if(nx<0||ny<0||nx>=W||ny>=H)continue;
       const n=ny*W+nx;if(v[n])continue;v[n]=1;const d=df(n);if(d<=90)st.push(n);else if(d<=500)put(n)}} // soft edges get covered too
-  lx.putImageData(o,0,0);layer.d=1;render();
+  lx.putImageData(o,0,0);layer.d=1;touch(layer);render();
 }
 view.onpointerdown=e=>{stopPlay();closeSheets();if(tool==="fill"){const p=pos(e);save();fill(p[0],p[1]);paint(cf);return}
-  view.setPointerCapture(e.pointerId);down=true;last=pos(e);save();stroke(last,last)};
-view.onpointermove=e=>{if(!down)return;const p=pos(e);stroke(last,p);last=p};
-view.onpointerup=view.onpointercancel=()=>{if(down){down=false;paint(cf)}};
+  view.setPointerCapture(e.pointerId);down=true;last=pos(e);save();if(tool==='shape'){sp=last;ep=null;return}stroke(last,last)};
+view.onpointermove=e=>{if(!down)return;const p=pos(e);if(tool==='shape'){render();shapeStroke(vx,sp,p);ep=p;return}stroke(last,p);last=p};
+view.onpointerup=view.onpointercancel=()=>{if(down){down=false;
+  if(tool==='shape'&&ep){const l=frames[cf][cl];shapeStroke(l.getContext('2d'),sp,ep);l.d=1;touch(l);ep=null;render()}paint(cf)}};
 
-document.querySelectorAll('[data-tool]').forEach(b=>b.onclick=()=>{tool=b.dataset.tool;
-  document.querySelectorAll('[data-tool]').forEach(x=>x.classList.toggle('on',x===b))});
+function setTool(t){tool=t;document.querySelectorAll('[data-tool]').forEach(x=>x.classList.toggle('on',x.dataset.tool===t))}
+document.querySelectorAll('[data-tool]').forEach(b=>b.onclick=()=>{if(b.id!=='brushB'&&b.id!=='shapeB')setTool(b.dataset.tool)});
+const BR=[['Pencil','pencil'],['Pen','pen'],['Fat pen','fat'],['Air brush','air'],['Paint spray','spray'],['Glow','glow']];
+let bt=0,sh='line',sp=null,ep=null;const brushB=$('#brushB'),shapeB=$('#shapeB');
+brushB.onclick=()=>{const t=Date.now();if(t-bt<350){bt=0; // double-tap opens the brush list
+  popup(BR.map(([n,k])=>[n,()=>{brushB.dataset.tool=k;setTool(k)}]),brushB);return}bt=t;setTool(brushB.dataset.tool)};
+shapeB.onclick=()=>popup([['Line','line'],['Circle','circle'],['Square','square'],['Triangle','triangle']].map(([n,k])=>[n,()=>{sh=k;setTool('shape')}]),shapeB);
 document.querySelectorAll('.c').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('.c').forEach(x=>x.classList.toggle('sel',x===b));
   if(b.id==='cus'){color=hsv2(...hsv);sheet(picker)}else{color=b.dataset.c;closeSheets()}});
@@ -284,7 +290,7 @@ $('#cus i').style.background=hsv2(...hsv);
 
 /* ---------- format switch + publish ---------- */
 const fmtB=$('#fmt');
-fmtB.onclick=()=>{fmt=fmt==='mp4'?'gif':'mp4';fmtB.setAttribute('aria-checked',fmt==='gif')};
+fmtB.onclick=()=>{fmt=fmt==='mp4'?'gif':'mp4';schedule();fmtB.setAttribute('aria-checked',fmt==='gif')};
 
 const modal=$('#modal'),mb=$('#mbody');
 const png=i=>new Promise(r=>{const c=mk();comp(c.getContext('2d'),frames[i],W,H);c.toBlob(r,'image/png')});
@@ -298,7 +304,7 @@ $('#publish').onclick=async()=>{
     const fd=new FormData();fd.append('format',fmt);fd.append('fps',fps);
     for(let i=0;i<frames.length;i++)fd.append('frames',await png(i),`f${i}.png`);
     const res=await fetch('/publish',{method:'POST',body:fd}),data=await res.json();
-    if(!res.ok)throw new Error(data.error||'Publish failed.');
+    if(!res.ok)throw new Error(data.error||'Publish failed.');clearTimeout(st);idbDel();
     show(`<svg class="ok" viewBox="0 0 52 52"><circle class="ring" cx="26" cy="26" r="23"/><path class="tick" d="M15 27l8 8 15-16"/></svg>
     <h2>Published</h2><p>This link works for 24 hours.</p>
     <input id="lk" readonly value="${data.url}" aria-label="Direct link">
@@ -309,6 +315,65 @@ $('#publish').onclick=async()=>{
   }catch(err){show(`<h2>Publish failed</h2><p>${err.message} Check your connection and try again.</p>${close}`)}
 };
 
+/* ---------- brushes, shapes, popup ---------- */
+function popup(list,b){const r=b.getBoundingClientRect();menu.innerHTML='';
+  list.forEach(([t,fn])=>{const m=document.createElement('button');m.textContent=t;m.onclick=()=>{fn();menu.classList.remove('open')};menu.append(m)});
+  menu.style.left=Math.max(8,Math.min(r.left,innerWidth-168))+'px';menu.style.bottom=(innerHeight-r.top+8)+'px';menu.classList.add('open')}
+const rgba=(c,a)=>`rgba(${parseInt(c.substr(1,2),16)},${parseInt(c.substr(3,2),16)},${parseInt(c.substr(5,2),16)},${a})`;
+function dab(c,a,b){ // one segment of the current brush
+  const dx=b[0]-a[0],dy=b[1]-a[1],n=Math.max(1,Math.ceil(Math.hypot(dx,dy)/3));
+  c.save();c.strokeStyle=c.fillStyle=color;c.lineCap=c.lineJoin='round';
+  if(tool==='air'||tool==='spray'){
+    for(let i=0;i<=n;i++){const x=a[0]+dx*i/n,y=a[1]+dy*i/n;
+      if(tool==='air'){const g=c.createRadialGradient(x,y,0,x,y,18);g.addColorStop(0,rgba(color,.22));g.addColorStop(1,rgba(color,0));c.fillStyle=g;c.beginPath();c.arc(x,y,18,0,7);c.fill()}
+      else for(let j=0;j<10;j++){const t=Math.random()*6.283,r=Math.random()*18;c.fillRect(x+Math.cos(t)*r,y+Math.sin(t)*r,1.6,1.6)}}
+  }else{
+    c.lineWidth={pen:3,pencil:2,fat:14,glow:5,eraser:28}[tool]||3;
+    if(tool==='pencil')c.globalAlpha=.75;
+    if(tool==='glow'){c.shadowColor=color;c.shadowBlur=18}
+    for(let k=tool==='glow'?2:1;k--;){c.beginPath();c.moveTo(a[0],a[1]);c.lineTo(b[0],b[1]);c.stroke()}
+  }
+  c.restore();
+}
+function shapeStroke(c,a,b){
+  const dx=b[0]-a[0],dy=b[1]-a[1];c.save();c.strokeStyle=color;c.lineWidth=3;c.lineCap=c.lineJoin='round';c.beginPath();
+  if(sh==='line'){c.moveTo(a[0],a[1]);c.lineTo(b[0],b[1])}
+  else if(sh==='circle')c.arc(a[0],a[1],Math.hypot(dx,dy),0,7);
+  else if(sh==='square'){const m=Math.max(Math.abs(dx),Math.abs(dy));c.rect(a[0],a[1],dx<0?-m:m,dy<0?-m:m)}
+  else{c.moveTo(a[0]+dx/2,a[1]);c.lineTo(b[0],a[1]+dy);c.lineTo(a[0],a[1]+dy);c.closePath()}
+  c.stroke();c.restore();
+}
+
+/* ---------- autosave draft (IndexedDB) ---------- */
+const touch=c=>{c.b=null;c.v=(c.v||0)+1};
+const idb=()=>new Promise((ok,no)=>{const r=indexedDB.open('studio',1);r.onupgradeneeded=()=>r.result.createObjectStore('s');r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)});
+const idbGet=async()=>{const db=await idb();return new Promise(ok=>{const q=db.transaction('s').objectStore('s').get('current');q.onsuccess=()=>ok(q.result);q.onerror=()=>ok(null)})};
+const idbDel=async()=>{try{(await idb()).transaction('s','readwrite').objectStore('s').delete('current')}catch(e){}};
+let st,saving=false,again=false,recovering=false;
+function schedule(){clearTimeout(st);st=setTimeout(saveDraft,800)}
+async function saveDraft(){
+  if(recovering)return;if(saving){again=true;return}
+  if(frames.length<2&&!frames[0].some(c=>c.d))return; // nothing drawn yet
+  saving=true;
+  try{
+    const fs=frames.map(f=>f.slice()),fr=[];
+    for(const f of fs){const ls=[];for(const c of f){let bl=c.b;
+      if(!bl){const v=c.v;bl=await new Promise(r=>c.toBlob(r,'image/png'));if(c.v===v)c.b=bl}
+      ls.push({b:bl,d:c.d||0})}fr.push(ls)}
+    (await idb()).transaction('s','readwrite').objectStore('s').put({fps,fmt,cf,cl,meta:meta.map(m=>({...m})),fr,t:Date.now()},'current');
+  }catch(e){}
+  saving=false;if(again){again=false;schedule()}
+}
+async function restore(d){
+  meta=d.meta;fps=d.fps;fmt=d.fmt;cl=Math.min(d.cl,d.meta.length-1);
+  frames=await Promise.all(d.fr.map(ls=>Promise.all(ls.map(async o=>{const c=mk(),im=await createImageBitmap(o.b);
+    c.getContext('2d').drawImage(im,0,0);c.d=o.d;c.b=o.b;return c}))));
+  cf=Math.min(d.cf,frames.length-1);undoS.length=redoS.length=0;hist();
+  $('#fps').textContent=fps+' fps';fmtB.setAttribute('aria-checked',fmt==='gif');drawStrip();render();
+}
+document.addEventListener('visibilitychange',()=>{if(document.hidden){clearTimeout(st);saveDraft()}});
+addEventListener('pagehide',()=>{clearTimeout(st);saveDraft()});
+
 /* ---------- undo / redo (drawing and fills, last 20 steps) ---------- */
 const undoS=[],redoS=[];
 const snap=c=>({c,img:c.getContext('2d').getImageData(0,0,W,H),d:c.d});
@@ -317,7 +382,7 @@ function save(){undoS.push(snap(frames[cf][cl]));if(undoS.length>20)undoS.shift(
 function step(from,to){
   let e;while((e=from.pop())){
     const f=frames.findIndex(fr=>fr.includes(e.c));if(f<0)continue; // its frame or layer was deleted
-    to.push(snap(e.c));e.c.getContext('2d').putImageData(e.img,0,0);e.c.d=e.d;
+    touch(e.c);to.push(snap(e.c));e.c.getContext('2d').putImageData(e.img,0,0);e.c.d=e.d;
     stopPlay();cl=frames[f].indexOf(e.c);if(f!==cf)go(f);if(panel.classList.contains('open'))drawLayers();render();paint(f);break;
   }
   hist();
@@ -328,6 +393,14 @@ document.addEventListener('keydown',e=>{
   if(k==='z'){e.preventDefault();$(e.shiftKey?'#redo':'#undo').click()}else if(k==='y'){e.preventDefault();$('#redo').click()}});
 
 drawStrip();render();
+recovering=true; // hold autosave until we know whether a draft exists
+idbGet().then(d=>{
+  if(!d||!d.fr){recovering=false;return}
+  show(`<h2>Recover your animation?</h2><p>Unfinished drawing from ${new Date(d.t).toLocaleString()}.</p>
+  <div class="acts"><button id="rc" class="red">Recover</button><button id="nw">Start new</button></div>`);
+  $('#rc').onclick=async()=>{await restore(d);recovering=false;modal.classList.remove('open')};
+  $('#nw').onclick=()=>{idbDel();recovering=false;modal.classList.remove('open')};
+}).catch(()=>{recovering=false});
 </script>
 </body>
 </html>
