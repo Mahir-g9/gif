@@ -4,6 +4,8 @@ const { v4: uuidv4 } = require('uuid');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const net = require('net');
+const { execFile } = require('child_process');
 const ffmpeg = require('fluent-ffmpeg');
 const { Pool } = require('pg');
 const { createClient } = require('@supabase/supabase-js');
@@ -49,6 +51,7 @@ async function init() {
     if (error && !/exist/i.test(error.message)) console.error('Bucket error:', error.message);
     cleanup();
     setInterval(cleanup, 15 * 60 * 1000);
+    ensureYt().catch(e => console.error('yt-dlp:', e.message)); // warm up the link downloader
 }
 
 // Delete files + records older than 24 hours.
@@ -61,7 +64,10 @@ async function cleanup() {
         const { error } = await supabase.storage.from(BUCKET).remove(names);
         if (error) throw error;
         await pool.query('delete from hosted_media where filename = any($1)', [names]);
-        names.forEach(n => fs.rm(path.join(uploadDir, n), { force: true }, () => {}));
+        names.forEach(n => {
+            fs.rm(path.join(uploadDir, n), { force: true }, () => {});
+            fs.rm(path.join(uploadDir, n.replace(/\.mp4$/, '.mp3')), { force: true }, () => {});
+        });
         console.log(`Cleanup removed ${names.length} file(s).`);
     } catch (e) {
         console.error('Cleanup failed:', e.message);
@@ -104,6 +110,7 @@ app.get('/uploads/:name', async (req, res) => {
             if (error || !data) return res.sendStatus(404);
             fs.writeFileSync(p, Buffer.from(await data.arrayBuffer()));
         }
+        if (req.query.dl) res.attachment(name); // ?dl=1 forces a download
         res.sendFile(p);
     } catch (e) {
         res.sendStatus(404);
@@ -234,7 +241,12 @@ const num = (v, min, max, d) => { const x = parseFloat(v); return isNaN(x) ? d :
 const isHex = h => /^[0-9a-f]{6}$/i.test(h || '');
 
 app.post('/convert', convUpload.single('file'), async (req, res) => {
-    if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
+    let input = req.file && req.file.path;
+    if (!input) { // convert a video that was fetched from a link
+        const n = path.basename(String(req.body.src || ''));
+        if (/^[\w-]+\.(mp4|gif)$/.test(n)) input = await ensureLocal(n);
+        if (!input) return res.status(400).json({ error: 'Choose a file or fetch a link first.' });
+    }
     const b = req.body;
     const key = b.key === 'none' ? null : (isHex(b.key) ? b.key.toLowerCase() : '00ff00');
     let green = false;
@@ -252,7 +264,7 @@ app.post('/convert', convUpload.single('file'), async (req, res) => {
     const name = uuidv4().slice(0, 8) + '.gif';
     const out = path.join(uploadDir, name);
     try {
-        await makeGif(req.file.path, o, out);
+        await makeGif(input, o, out);
         await store(out, name, 'image/gif');
         res.json({ url: fullUrl(req, name), size: fs.statSync(out).size });
     } catch (e) {
@@ -260,9 +272,113 @@ app.post('/convert', convUpload.single('file'), async (req, res) => {
         fs.rm(out, { force: true }, () => {});
         res.status(500).json({ error: 'Could not convert: ' + (e.message || e) });
     } finally {
-        fs.rm(req.file.path, { force: true }, () => {});
+        if (req.file) fs.rm(req.file.path, { force: true }, () => {});
     }
 });
+
+// ---- Link -> video (YouTube, Facebook, TikTok, ... via yt-dlp) -------------
+const YT_BIN = path.join(__dirname, 'bin', 'yt-dlp');
+const MAX_VIDEO_MB = 50; // Supabase free plan file limit
+let ytBusy = false;
+
+async function ensureYt() {
+    if (fs.existsSync(YT_BIN)) return;
+    fs.mkdirSync(path.dirname(YT_BIN), { recursive: true });
+    const r = await fetch('https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux');
+    if (!r.ok) throw new Error('Could not download the video tool');
+    await fs.promises.writeFile(YT_BIN, Buffer.from(await r.arrayBuffer()));
+    await fs.promises.chmod(YT_BIN, 0o755);
+}
+
+function safeUrl(u) { // http(s) links to public hostnames only
+    try {
+        const x = new URL(u), h = x.hostname;
+        return /^https?:$/.test(x.protocol) && !net.isIP(h) && h.includes('.') &&
+            h !== 'localhost' && !/\.(local|internal|lan)$/.test(h);
+    } catch (e) { return false; }
+}
+
+function toMp4(input, output) {
+    return new Promise((resolve, reject) => {
+        ffmpeg(input).videoCodec('libx264').audioCodec('aac')
+            .outputOptions(['-pix_fmt', 'yuv420p', '-movflags', '+faststart'])
+            .on('end', resolve).on('error', reject).save(output);
+    });
+}
+
+app.post('/api/fetch', express.json(), async (req, res) => {
+    const link = String((req.body && req.body.url) || '').trim();
+    if (!safeUrl(link)) return res.status(400).json({ error: 'Enter a valid video link starting with http or https.' });
+    if (ytBusy) return res.status(429).json({ error: 'Another download is running. Try again in a minute.' });
+    ytBusy = true;
+    const id = uuidv4().slice(0, 8);
+    try {
+        await ensureYt();
+        const title = await new Promise((resolve, reject) => {
+            execFile(YT_BIN, [
+                '--no-playlist', '--no-warnings', '--socket-timeout', '20',
+                '--max-filesize', MAX_VIDEO_MB + 'M', '--match-filter', '!is_live & duration<=?600',
+                '-f', 'b[ext=mp4][height<=720]/bv*[ext=mp4][height<=720]+ba[ext=m4a]/b[height<=720]/b',
+                '--merge-output-format', 'mp4', '--ffmpeg-location', require('ffmpeg-static'),
+                '--print', 'title', '--no-simulate',
+                '-o', path.join(uploadDir, id + '.%(ext)s'), '--', link
+            ], { timeout: 180000, maxBuffer: 1 << 20 }, (err, out, errOut) => {
+                if (!err) return resolve((out || '').trim().split('\n')[0].slice(0, 120) || 'Video');
+                const msg = ((errOut || '').split('\n').filter(l => l.startsWith('ERROR')).pop() || err.message);
+                reject(new Error(/Sign in|confirm you.re not a bot/i.test(msg)
+                    ? 'This site blocked the server (it asked for sign-in). Try another link.' : msg.slice(0, 200)));
+            });
+        });
+        const got = fs.readdirSync(uploadDir).find(f => f.startsWith(id + '.'));
+        if (!got) throw new Error('Skipped: the video is longer than 10 minutes, live, or over ' + MAX_VIDEO_MB + ' MB.');
+        const name = id + '.mp4', out = path.join(uploadDir, name);
+        if (got !== name) { await toMp4(path.join(uploadDir, got), out); fs.rm(path.join(uploadDir, got), { force: true }, () => {}); }
+        const size = fs.statSync(out).size;
+        if (size > MAX_VIDEO_MB * 1024 * 1024) { fs.rmSync(out, { force: true }); throw new Error('Video is over ' + MAX_VIDEO_MB + ' MB.'); }
+        await store(out, name, 'video/mp4');
+        res.json({ url: fullUrl(req, name), name, title, size });
+    } catch (e) {
+        console.error(e);
+        fs.readdirSync(uploadDir).filter(f => f.startsWith(id + '.')).forEach(f => fs.rm(path.join(uploadDir, f), { force: true }, () => {}));
+        res.status(500).json({ error: e.message || 'Could not fetch the video.' });
+    } finally {
+        ytBusy = false;
+    }
+});
+
+// MP3 of a stored video, made on first request and then reused.
+app.get('/audio/:name', async (req, res) => {
+    const name = path.basename(req.params.name);
+    if (!/^[\w-]+\.mp4$/.test(name)) return res.sendStatus(404);
+    const mp3 = path.join(uploadDir, name.replace(/\.mp4$/, '.mp3'));
+    const part = mp3.replace(/\.mp3$/, '.part.mp3');
+    try {
+        const src = await ensureLocal(name);
+        if (!src) return res.sendStatus(404);
+        if (!fs.existsSync(mp3)) {
+            await new Promise((resolve, reject) => {
+                ffmpeg(src).noVideo().audioCodec('libmp3lame').audioBitrate('192k')
+                    .on('end', resolve).on('error', reject).save(part);
+            });
+            fs.renameSync(part, mp3);
+        }
+        res.attachment(path.basename(mp3));
+        res.sendFile(mp3);
+    } catch (e) {
+        fs.rm(part, { force: true }, () => {});
+        res.status(422).send('This video has no audio track.');
+    }
+});
+
+async function ensureLocal(name) {
+    const p = path.join(uploadDir, name);
+    if (!fs.existsSync(p)) {
+        const { data, error } = await supabase.storage.from(BUCKET).download(name);
+        if (error || !data) return null;
+        fs.writeFileSync(p, Buffer.from(await data.arrayBuffer()));
+    }
+    return p;
+}
 
 // ---- Album -----------------------------------------------------------------
 app.get('/api/media', async (req, res) => {
