@@ -76,6 +76,7 @@ input[type=color]{width:100%;height:44px;padding:2px;background:var(--bg);border
 
   <button class="full rose" id="go" style="margin-top:16px" disabled>Convert</button>
   <p class="status" id="status" role="status"></p>
+  <div id="ld" style="margin-top:12px"></div>
 
   <div id="result">
     <div class="bg"><button class="seg on" data-bg="dark">Dark preview</button><button class="seg" data-bg="white">White preview</button></div>
@@ -85,6 +86,7 @@ input[type=color]{width:100%;height:44px;padding:2px;background:var(--bg);border
     <button class="full rose" id="copy"><svg class="i" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 012-2h9"/></svg><span>Copy link</span></button>
   </div>
 </main>
+<script src="/loader.js"></script>
 <script>
 const $=id=>document.getElementById(id),say=(t,e)=>{$('status').textContent=t;$('status').classList.toggle('err',!!e)};
 let src=null;
@@ -101,10 +103,9 @@ $('paste').onclick=async()=>{
 };
 $('fetch').onclick=async()=>{
   const u=$('url').value.trim();if(!u)return;
-  $('fetch').disabled=true;$('fetched').hidden=true;say('Fetching the video. This can take a minute...');
+  $('fetch').disabled=true;$('fetched').hidden=true;say('');
   try{
-    const r=await fetch('/api/fetch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:u})}),d=await r.json();
-    if(!r.ok)throw new Error(d.error||'Could not fetch the video.');
+    const d=await Loader.run($('ld'),{url:'/api/fetch',json:true,body:JSON.stringify({url:u}),est:45});
     src=d.name;$('file').value='';$('fname').textContent='Choose MP4 or GIF';
     $('fv').src=d.url;$('ftitle').textContent=d.title+' ('+(d.size/1048576).toFixed(1)+' MB)';$('fdl').href=d.url+'?dl=1';$('fmp3').href=d.url.replace('/uploads/','/audio/');
     $('fetched').hidden=false;$('go').disabled=false;say('Video ready. Download it or convert it to a GIF below.');
@@ -117,10 +118,9 @@ $('go').onclick=async()=>{
   if(f)fd.append('file',f);else fd.append('src',src);fd.append('key',key);fd.append('sim',$('sim').value/100);fd.append('blend',$('blend').value/100);
   fd.append('shrink',$('shrink').value);fd.append('border',$('border').value);fd.append('bcolor',$('bcolor').value.slice(1));
   fd.append('width',$('width').value);fd.append('fps',$('fps').value);
-  $('go').disabled=true;$('result').style.display='none';say('Converting. This can take a minute on the free server...');
+  $('go').disabled=true;$('result').style.display='none';say('');
   try{
-    const res=await fetch('/convert',{method:'POST',body:fd}),d=await res.json();
-    if(!res.ok)throw new Error(d.error||'Conversion failed.');
+    const d=await Loader.run($('ld'),{url:'/convert',body:fd,upload:!!f,est:30});
     $('out').src=d.url;$('link').value=d.url;$('gdl').href=d.url+'?dl=1';$('result').style.display='block';
     say('Done. '+(d.size/1048576).toFixed(1)+' MB');
   }catch(e){say(e.message||'Network error.',true)}
