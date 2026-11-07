@@ -133,6 +133,7 @@ transform:translateY(12px);transition:opacity 200ms var(--out),transform 350ms v
 <div id="menu" role="menu"></div>
 <div id="modal"><div id="mbody"></div></div>
 
+<script src="/loader.js"></script>
 <script>
 const $=s=>document.querySelector(s);
 const ic=n=>`<svg class="i"><use href="#i-${n}"/></svg>`;
@@ -299,12 +300,12 @@ const show=h=>{mb.innerHTML=h;modal.classList.add('open');const c=$('#mc');if(c)
 
 $('#publish').onclick=async()=>{
   stopPlay();panel.classList.remove('open');$('#lbtn').classList.remove('on');
-  show(`<h2>Rendering ${fmt.toUpperCase()}</h2><p>Sending ${frames.length} frame${frames.length>1?'s':''}. Keep this page open.</p>`);
+  show('<div id="ldw" style="width:100%"></div>');
   try{
-    const fd=new FormData();fd.append('format',fmt);fd.append('fps',fps);
-    for(let i=0;i<frames.length;i++)fd.append('frames',await png(i),`f${i}.png`);
-    const res=await fetch('/publish',{method:'POST',body:fd}),data=await res.json();
-    if(!res.ok)throw new Error(data.error||'Publish failed.');clearTimeout(st);idbDel();
+    const data=await Loader.run($('#ldw'),{url:'/publish',upload:true,est:30,body:async()=>{
+      const fd=new FormData();fd.append('format',fmt);fd.append('fps',fps);
+      for(let i=0;i<frames.length;i++)fd.append('frames',await png(i),`f${i}.png`);return fd}});
+    clearTimeout(st);idbDel();
     show(`<svg class="ok" viewBox="0 0 52 52"><circle class="ring" cx="26" cy="26" r="23"/><path class="tick" d="M15 27l8 8 15-16"/></svg>
     <h2>Published</h2><p>This link works for 24 hours.</p>
     <input id="lk" readonly value="${data.url}" aria-label="Direct link">
