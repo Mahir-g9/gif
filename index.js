@@ -116,6 +116,7 @@ const fullUrl = (req, name) => `${req.protocol}://${req.get('host')}/uploads/${n
 app.post('/upload', upload.single('video'), async (req, res) => {
     if (!req.file) return res.status(400).json({ error: 'No video uploaded!' });
     try {
+        if (req.file.mimetype === 'image/gif') await shrinkIfNeeded(req.file.path);
         await store(req.file.path, req.file.filename, req.file.mimetype === 'image/gif' ? 'image/gif' : 'video/mp4');
         res.json({ url: fullUrl(req, req.file.filename) });
     } catch (e) {
@@ -124,6 +125,60 @@ app.post('/upload', upload.single('video'), async (req, res) => {
         res.status(500).json({ error: 'Upload failed: ' + (e.message || e) + '.' });
     }
 });
+
+// ---- GIF tools: chroma key, border, 8 MB compressor ------------------------
+const MAX_BYTES = 8 * 1024 * 1024;
+const MAX_SECONDS = 20;
+
+// Edge grow/shrink with boxblur + threshold, so it works on any ffmpeg build.
+const erode = r => `,boxblur=${r}:1,lutyuv=y='if(gte(val,250),255,0)'`;
+const dilate = r => `,boxblur=${r}:1,lutyuv=y='if(gt(val,5),255,0)'`;
+
+function gifFilter(o, w, fps, colors) {
+    let f = `[0:v]fps=${fps},scale='min(iw,${w})':-1:flags=lanczos,format=rgba`;
+    if (o.key) {
+        f += `,colorkey=0x${o.key}:${o.sim}:${o.blend}`;            // remove the key colour
+        if (o.green) f += ',despill=type=green';                      // no green fringe left on edges
+        if (o.shrink) f += `,split=2[k][m];[m]alphaextract${erode(o.shrink)}[a];[k][a]alphamerge,format=rgba`;
+    }
+    if (o.border) {                                                   // outline around what is left
+        const c = [0, 2, 4].map(i => parseInt(o.bcolor.substr(i, 2), 16));
+        f += `,split=2[fg][w];[w]lutrgb=r=${c[0]}:g=${c[1]}:b=${c[2]},split=2[w1][w2];` +
+             `[w2]alphaextract${dilate(o.border)}[wa];[w1][wa]alphamerge[wh];[wh][fg]overlay=format=auto,format=rgba`;
+    }
+    return f + `,split[s0][s1];[s0]palettegen=max_colors=${colors}:reserve_transparent=1[p];` +
+               `[s1][p]paletteuse=dither=bayer:bayer_scale=4:alpha_threshold=128`;
+}
+
+function runGif(input, filter, out) {
+    return new Promise((resolve, reject) => {
+        ffmpeg(input)
+            .inputOptions(['-t', String(MAX_SECONDS)])
+            .complexFilter(filter)
+            .outputOptions(['-an', '-loop', '0', '-gifflags', '-transdiff'])
+            .on('end', resolve).on('error', reject)
+            .save(out);
+    });
+}
+
+// Re-encodes smaller (narrower, fewer fps, fewer colours) until the file fits in 8 MB.
+async function makeGif(input, o, out) {
+    let w = o.width, fps = o.fps, colors = 256;
+    for (let i = 0; i < 6; i++) {
+        await runGif(input, gifFilter(o, w, fps, colors), out);
+        if (fs.statSync(out).size <= MAX_BYTES) return;
+        w = Math.round(w * 0.8); fps = Math.max(6, fps - 2); colors = Math.max(64, colors - 48);
+    }
+    throw new Error('Still over 8 MB after compressing. Try a shorter clip');
+}
+
+async function shrinkIfNeeded(file) {
+    if (fs.statSync(file).size <= MAX_BYTES) return;
+    const tmpOut = file + '.small.gif';
+    await makeGif(file, { width: 640, fps: 15 }, tmpOut);
+    fs.renameSync(tmpOut, file);
+}
+// ---- end GIF tools ----------------------------------------------------------
 
 // ---- Publish (frames -> MP4 / GIF) ----------------------------------------
 const frameUpload = multer({
@@ -161,6 +216,7 @@ app.post('/publish', frameUpload.array('frames', 200), async (req, res) => {
         const name = uuidv4().slice(0, 8) + (gif ? '.gif' : '.mp4');
         const out = path.join(uploadDir, name);
         await render(dir, fps, gif, out);
+        if (gif) await shrinkIfNeeded(out);
         await store(out, name, gif ? 'image/gif' : 'video/mp4');
         res.json({ url: fullUrl(req, name) });
     } catch (e) {
@@ -169,6 +225,42 @@ app.post('/publish', frameUpload.array('frames', 200), async (req, res) => {
     } finally {
         files.forEach(f => fs.rm(f.path, { force: true }, () => {}));
         fs.rm(dir, { recursive: true, force: true }, () => {});
+    }
+});
+
+// ---- Convert (MP4/GIF -> transparent GIF) ----------------------------------
+const convUpload = multer({ dest: path.join(os.tmpdir(), 'conv'), limits: { fileSize: 100 * 1024 * 1024 } });
+const num = (v, min, max, d) => { const x = parseFloat(v); return isNaN(x) ? d : Math.min(max, Math.max(min, x)); };
+const isHex = h => /^[0-9a-f]{6}$/i.test(h || '');
+
+app.post('/convert', convUpload.single('file'), async (req, res) => {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
+    const b = req.body;
+    const key = b.key === 'none' ? null : (isHex(b.key) ? b.key.toLowerCase() : '00ff00');
+    let green = false;
+    if (key) {
+        const [r, g, bl] = [0, 2, 4].map(i => parseInt(key.substr(i, 2), 16));
+        green = g > r + 40 && g > bl + 40;
+    }
+    const o = {
+        key, green,
+        sim: num(b.sim, 0.01, 0.6, 0.3), blend: num(b.blend, 0, 0.5, 0.1),
+        shrink: Math.round(num(b.shrink, 0, 4, 1)), border: Math.round(num(b.border, 0, 8, 2)),
+        bcolor: isHex(b.bcolor) ? b.bcolor : 'ffffff',
+        width: Math.round(num(b.width, 120, 720, 480)), fps: Math.round(num(b.fps, 5, 20, 12))
+    };
+    const name = uuidv4().slice(0, 8) + '.gif';
+    const out = path.join(uploadDir, name);
+    try {
+        await makeGif(req.file.path, o, out);
+        await store(out, name, 'image/gif');
+        res.json({ url: fullUrl(req, name), size: fs.statSync(out).size });
+    } catch (e) {
+        console.error(e);
+        fs.rm(out, { force: true }, () => {});
+        res.status(500).json({ error: 'Could not convert: ' + (e.message || e) });
+    } finally {
+        fs.rm(req.file.path, { force: true }, () => {});
     }
 });
 
