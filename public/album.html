@@ -22,7 +22,7 @@ svg.i{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke
 .item{background:var(--card);padding:10px;display:flex;flex-direction:column;gap:8px;border-radius:28px 6px 28px 6px}
 .item video,.item img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:20px 4px 20px 4px;background:var(--bg)}
 .time{color:var(--muted);font-size:.75rem;text-align:center}
-.item button{width:100%}
+.item button,.item .btn{width:100%}
 .empty{max-width:900px;margin:40px auto;text-align:center;color:var(--muted)}
 .empty a{color:var(--text)}
 @media (prefers-reduced-motion:reduce){*{transition-duration:.01ms!important}}
@@ -41,11 +41,12 @@ svg.i{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke
 <script>
 const grid=document.getElementById('grid'),empty=document.getElementById('empty');
 const icon='<svg class="i" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 012-2h9"/></svg>';
+const dl='<svg class="i" viewBox="0 0 24 24"><path d="M12 4v12M7 11l5 5 5-5M5 20h14"/></svg>';
 async function copy(t){try{await navigator.clipboard.writeText(t)}catch(e){const i=document.createElement('input');i.value=t;document.body.append(i);i.select();document.execCommand('copy');i.remove()}}
 function card(m){
   const el=document.createElement('div');el.className='item';
   const media=m.kind==='gif'?`<img src="${m.url}" alt="GIF" loading="lazy">`:`<video src="${m.url}#t=0.1" muted loop playsinline controls preload="metadata"></video>`;
-  el.innerHTML=`${media}<span class="time">${new Date(m.createdAt).toLocaleString()}</span><button class="rose">${icon}Share</button>`;
+  el.innerHTML=`${media}<span class="time">${new Date(m.createdAt).toLocaleString()}</span><button class="rose">${icon}Share</button><a class="btn" href="${m.url}?dl=1" download>${dl}Download</a>${m.kind==='gif'?'':`<a class="btn" href="${m.url.replace('/uploads/','/audio/')}" download>${dl}MP3</a>`}`;
   const b=el.querySelector('button');
   b.onclick=async()=>{await copy(m.url);b.textContent='Link copied';setTimeout(()=>b.innerHTML=icon+'Share',1500)};
   return el;
