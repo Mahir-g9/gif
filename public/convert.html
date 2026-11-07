@@ -17,7 +17,7 @@ h1{margin:0;flex:1;font-size:1.3rem}
 min-height:46px;padding:0 14px;border-radius:16px 4px 16px 4px;background:var(--plum);transition:transform 450ms var(--spring),opacity 150ms}
 .btn:active,button:active{transform:scale(.95);transition:transform 100ms var(--out)}
 .btn:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--text);outline-offset:2px}
-button.full{width:100%}.rose{background:var(--rose)}button:disabled{opacity:.4;cursor:not-allowed}
+button.full,.btn.full{width:100%}.rose{background:var(--rose)}button:disabled{opacity:.4;cursor:not-allowed}
 button.seg.on{background:var(--rose)}
 svg.i{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
 input[type=file]{display:none}
@@ -31,6 +31,8 @@ input[type=color]{width:100%;height:44px;padding:2px;background:var(--bg);border
 #custom{display:none}
 .status{min-height:1.4em;margin:12px 0 0;text-align:center;color:var(--muted);font-size:.9rem}
 .status.err{color:var(--text);background:var(--rose);border-radius:12px 3px 12px 3px;padding:6px 10px}
+#fetched{margin:10px 0 14px}
+#fetched video{width:100%;max-height:220px;border-radius:20px 4px 20px 4px;background:var(--bg);margin-bottom:8px}
 #result{display:none;margin-top:14px}
 #stage{display:flex;align-items:center;justify-content:center;min-height:160px;padding:10px;margin:8px 0;border-radius:24px 5px 24px 5px;background:var(--bg)}
 #stage.white{background:#ffffff}
@@ -46,8 +48,14 @@ input[type=color]{width:100%;height:44px;padding:2px;background:var(--bg);border
     <h1>Convert to GIF</h1>
     <a class="btn" href="/album.html">Album</a>
   </header>
-  <p class="sub">MP4 or GIF in, auto-playing GIF out. Optionally remove a background colour. Output is kept under 8 MB.</p>
+  <p class="sub">MP4 or GIF in, auto-playing GIF out. Paste a video link or choose a file. Optionally remove a background colour. GIFs are kept under 8 MB.</p>
 
+  <label class="f" for="url">Video link (YouTube, Facebook, TikTok, X and more)</label>
+  <div class="row" style="grid-template-columns:1fr auto auto"><input type="text" id="url" placeholder="https://..." inputmode="url" autocomplete="off"><button id="paste" aria-label="Paste link"><svg class="i" viewBox="0 0 24 24"><rect x="6" y="4" width="12" height="17" rx="2"/><path d="M9 4h6v3H9z"/></svg></button><button class="rose" id="fetch">Fetch</button></div>
+  <div id="fetched" hidden><video id="fv" controls playsinline></video><p class="sub" id="ftitle" style="margin:0 0 8px"></p>
+    <a class="btn full" id="fdl" download><svg class="i" viewBox="0 0 24 24"><path d="M12 4v12M7 11l5 5 5-5M5 20h14"/></svg>Download video</a>
+    <a class="btn full" id="fmp3" download style="margin-top:8px"><svg class="i" viewBox="0 0 24 24"><path d="M9 18V6l10-2v12"/><circle cx="6" cy="18" r="3"/><circle cx="16" cy="16" r="3"/></svg>Download MP3</a></div>
+  <p class="sub" style="margin:12px 0 8px">Or choose a file:</p>
   <label class="drop" id="drop"><svg class="i" viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></svg><span id="fname">Choose MP4 or GIF</span>
     <input type="file" id="file" accept="video/*,image/gif"></label>
 
@@ -73,29 +81,47 @@ input[type=color]{width:100%;height:44px;padding:2px;background:var(--bg);border
     <div class="bg"><button class="seg on" data-bg="dark">Dark preview</button><button class="seg" data-bg="white">White preview</button></div>
     <div id="stage"><img id="out" alt="Converted GIF"></div>
     <input type="text" id="link" readonly aria-label="Direct link" style="margin-bottom:10px">
+    <a class="btn full" id="gdl" download style="margin-bottom:10px"><svg class="i" viewBox="0 0 24 24"><path d="M12 4v12M7 11l5 5 5-5M5 20h14"/></svg>Download GIF</a>
     <button class="full rose" id="copy"><svg class="i" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 012-2h9"/></svg><span>Copy link</span></button>
   </div>
 </main>
 <script>
 const $=id=>document.getElementById(id),say=(t,e)=>{$('status').textContent=t;$('status').classList.toggle('err',!!e)};
+let src=null;
 const unit={sim:'%',blend:'%',shrink:' px',border:' px'};
 for(const k in unit){const el=$(k);el.oninput=()=>$(k+'v').textContent=el.value+unit[k]}
 $('key').onchange=()=>{$('custom').style.display=$('key').value==='custom'?'block':'none'};
-$('file').onchange=()=>{const f=$('file').files[0];if(!f)return;$('fname').textContent=f.name;$('go').disabled=false;say('')};
+$('file').onchange=()=>{const f=$('file').files[0];if(!f)return;$('fname').textContent=f.name;src=null;$('fetched').hidden=true;$('go').disabled=false;say('')};
 document.querySelectorAll('[data-bg]').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('[data-bg]').forEach(x=>x.classList.toggle('on',x===b));$('stage').classList.toggle('white',b.dataset.bg==='white')});
 
+$('paste').onclick=async()=>{
+  try{const t=await navigator.clipboard.readText();if(t){$('url').value=t.trim();say('Link pasted. Tap Fetch.')}}
+  catch(e){$('url').focus();say('Quick paste was blocked. Long-press the box and tap Paste.',true)}
+};
+$('fetch').onclick=async()=>{
+  const u=$('url').value.trim();if(!u)return;
+  $('fetch').disabled=true;$('fetched').hidden=true;say('Fetching the video. This can take a minute...');
+  try{
+    const r=await fetch('/api/fetch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:u})}),d=await r.json();
+    if(!r.ok)throw new Error(d.error||'Could not fetch the video.');
+    src=d.name;$('file').value='';$('fname').textContent='Choose MP4 or GIF';
+    $('fv').src=d.url;$('ftitle').textContent=d.title+' ('+(d.size/1048576).toFixed(1)+' MB)';$('fdl').href=d.url+'?dl=1';$('fmp3').href=d.url.replace('/uploads/','/audio/');
+    $('fetched').hidden=false;$('go').disabled=false;say('Video ready. Download it or convert it to a GIF below.');
+  }catch(e){say(e.message||'Network error.',true)}
+  finally{$('fetch').disabled=false}
+};
 $('go').onclick=async()=>{
-  const f=$('file').files[0];if(!f)return;
+  const f=$('file').files[0];if(!f&&!src)return;
   const key=$('key').value==='custom'?$('ckey').value.slice(1):$('key').value,fd=new FormData();
-  fd.append('file',f);fd.append('key',key);fd.append('sim',$('sim').value/100);fd.append('blend',$('blend').value/100);
+  if(f)fd.append('file',f);else fd.append('src',src);fd.append('key',key);fd.append('sim',$('sim').value/100);fd.append('blend',$('blend').value/100);
   fd.append('shrink',$('shrink').value);fd.append('border',$('border').value);fd.append('bcolor',$('bcolor').value.slice(1));
   fd.append('width',$('width').value);fd.append('fps',$('fps').value);
   $('go').disabled=true;$('result').style.display='none';say('Converting. This can take a minute on the free server...');
   try{
     const res=await fetch('/convert',{method:'POST',body:fd}),d=await res.json();
     if(!res.ok)throw new Error(d.error||'Conversion failed.');
-    $('out').src=d.url;$('link').value=d.url;$('result').style.display='block';
+    $('out').src=d.url;$('link').value=d.url;$('gdl').href=d.url+'?dl=1';$('result').style.display='block';
     say('Done. '+(d.size/1048576).toFixed(1)+' MB');
   }catch(e){say(e.message||'Network error.',true)}
   finally{$('go').disabled=false}
