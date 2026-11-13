@@ -2,6 +2,8 @@
   "name": "discord-video-host",
   "version": "2.0.0",
   "description": "Free media host for Discord embeds with an animation studio",
+  "license": "MIT",
+  "author": "Mahir-g9",
   "main": "index.js",
   "engines": { "node": ">=18" },
   "scripts": { "start": "node index.js" },
