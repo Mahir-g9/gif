@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Code renderer and editor</title>
+<style>
+:root{--bg:#17111f;--card:#261c33;--rose:#b83a63;--plum:#5b3a8c;--blue:#2f5bff;--text:#fff;--muted:#c9bcd8;
+--out:cubic-bezier(.16,1,.3,1);--spring:cubic-bezier(.34,1.56,.64,1)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;padding:12px 12px 40px;background:var(--bg);color:var(--text);font:500 15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:640px;margin:0 auto}
+header{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+h1{margin:0;flex:1;font-size:1.1rem}
+.btn,button{font:inherit;font-weight:700;color:var(--text);border:0;cursor:pointer;text-decoration:none;display:flex;align-items:center;justify-content:center;gap:6px;
+min-height:44px;padding:0 14px;border-radius:16px 4px 16px 4px;background:var(--plum);transition:transform 450ms var(--spring),opacity 150ms}
+.btn:active,button:active{transform:scale(.95);transition:transform 100ms var(--out)}
+.btn:focus-visible,button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--text);outline-offset:2px}
+.rose{background:var(--rose)}.on{background:var(--rose)}button:disabled{opacity:.4}
+svg.i{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.panel{background:var(--card);border-radius:28px 6px 28px 6px;padding:14px;margin-bottom:12px}
+#pv{display:flex;align-items:center;justify-content:center;min-height:150px;color:var(--muted);text-align:center}
+#pv video,#pv img{max-width:100%;max-height:220px;border-radius:14px 3px 14px 3px}#pv audio{width:100%}
+.bar{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+input[type=text],input[type=number],textarea{width:100%;background:var(--bg);color:var(--text);border:2px solid var(--plum);border-radius:14px 4px 14px 4px;padding:10px 12px;font:inherit}
+input[type=text],input[type=number]{height:44px}textarea{min-height:160px;resize:vertical;font:13px/1.4 ui-monospace,Menlo,monospace}
+input[type=range]{width:100%;accent-color:#b83a63}
+label.f{display:block;margin:8px 0 3px;color:var(--muted);font-size:.8rem}
+#tlw{overflow-x:auto;padding-bottom:6px}
+#tl{position:relative;min-height:44px}
+.row{position:relative;height:38px;margin-bottom:4px;background:var(--bg);border-radius:10px 3px 10px 3px}
+.blk{position:absolute;top:2px;bottom:2px;border-radius:8px 2px 8px 2px;padding:0 8px;font-size:.75rem;display:flex;align-items:center;overflow:hidden;white-space:nowrap;touch-action:none;cursor:grab}
+.blk.video{background:var(--rose)}.blk.gif{background:var(--plum)}.blk.audio{background:var(--blue)}
+.blk.sel{outline:2px solid var(--text)}
+#pl{position:absolute;top:0;bottom:0;width:2px;background:var(--text);pointer-events:none}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:8px}.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.sheet{display:none}.sheet.open{display:block}
+.opt{width:100%;justify-content:flex-start;margin-top:6px;background:var(--bg)}
+.status{min-height:1.3em;margin:6px 0;color:var(--muted);font-size:.85rem;text-align:center}
+.status.err{color:var(--text);background:var(--rose);border-radius:10px 3px 10px 3px;padding:6px 10px}
+@media (prefers-reduced-motion:reduce){*{transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <a class="btn" href="/" aria-label="Home"><svg class="i" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></a>
+  <h1>Code renderer and editor</h1>
+  <button class="rose" id="bExport">Export</button>
+</header>
+
+<div class="panel" id="pv">Add a clip to start.</div>
+
+<div class="bar">
+  <button class="rose" id="bAdd"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add</button>
+  <button id="bZoom">Zoom</button>
+</div>
+
+<!-- custom searchable select -->
+<div class="panel sheet" id="pick">
+  <input type="text" id="q" placeholder="Search: video, gif, mp3, html, link..." autocomplete="off" aria-label="Search clip types">
+  <div id="opts"></div>
+</div>
+
+<!-- step 2: the input for the chosen type -->
+<div class="panel sheet" id="addp">
+  <b id="addt"></b>
+  <div id="addbody"></div>
+</div>
+
+<div class="panel">
+  <label class="f" for="ph">Playhead <b id="pht">0.0 s</b></label>
+  <input type="range" id="ph" min="0" max="10" step="0.1" value="0">
+  <div id="tlw"><div id="tl"><div id="pl"></div></div></div>
+</div>
+
+<div class="panel sheet" id="props">
+  <b id="pname"></b>
+  <div class="g3"><div><label class="f" for="pS">Start (s)</label><input type="number" id="pS" step="0.1" min="0"></div>
+  <div><label class="f" for="pI">Trim in (s)</label><input type="number" id="pI" step="0.1" min="0"></div>
+  <div><label class="f" for="pD">Length (s)</label><input type="number" id="pD" step="0.1" min="0.1"></div></div>
+  <label class="f" for="pV">Volume <b id="pVt">100%</b></label><input type="range" id="pV" min="0" max="200" value="100">
+  <div class="g2" style="margin-top:10px"><button id="bSplit">Split at playhead</button><button id="bDup">Duplicate</button>
+  <button id="bUp">Layer up</button><button id="bDn">Layer down</button></div>
+  <button class="rose" id="bDel" style="width:100%;margin-top:8px">Delete clip</button>
+</div>
+
+<div class="panel sheet" id="exp">
+  <b>Export</b>
+  <div class="g3" style="margin-top:8px" id="fmtb"><button data-f="mp4" class="on">MP4</button><button data-f="gif">GIF</button><button data-f="mp3">MP3</button></div>
+  <div class="g3" style="margin-top:8px" id="ratb"><button data-r="16:9" class="on">16:9</button><button data-r="9:16">9:16</button><button data-r="1:1">1:1</button></div>
+  <button class="rose" id="bGo" style="width:100%;margin-top:10px">Render</button>
+  <div id="res" style="display:none;margin-top:10px">
+    <div id="rprev" style="text-align:center;margin-bottom:8px"></div>
+    <input type="text" id="link" readonly aria-label="Direct link">
+    <div class="g2" style="margin-top:8px"><a class="btn" id="dl" download>Download</a><button class="rose" id="cp">Copy link</button></div>
+  </div>
+</div>
+
+<p class="status" id="status" role="status"></p>
+<div id="ld"></div>
+</main>
+
+<script src="/loader.js"></script>
+<script>
+const $=id=>document.getElementById(id),say=(t,e)=>{$('status').textContent=t;$('status').classList.toggle('err',!!e)};
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let clips=[],sel=null,pps=40,uid=1,fmt='mp4',ratio='16:9';
+const total=()=>Math.max(0,...clips.map(c=>c.start+c.dur));
+const cur=()=>clips.find(c=>c.id===sel);
+
+/* ---------- custom searchable select ---------- */
+const TYPES=[
+ ['vfile','Video file','video mp4 mov file upload','video/*'],['vlink','Video link','video youtube facebook tiktok mp4 url link'],
+ ['gfile','GIF file','gif animation upload','image/gif'],['glink','GIF link','gif animation url link'],
+ ['afile','Audio file (MP3)','audio mp3 music sound upload file','audio/*'],['alink','Audio link (MP3)','audio mp3 music sound url link'],
+ ['html','HTML code','html css animation code paste render'],
+ ['any','Any file','anything media upload file','video/*,audio/*,image/gif'],['alnk','Any link','anything media url link']];
+function opts(){
+  const q=$('q').value.trim().toLowerCase(),box=$('opts');box.innerHTML='';
+  const list=TYPES.filter(t=>!q||(t[1]+' '+t[2]).toLowerCase().includes(q));
+  list.forEach(t=>{const b=document.createElement('button');b.className='opt';b.textContent=t[1];b.onclick=()=>choose(t);box.append(b)});
+  if(!list.length)box.innerHTML='<p class="status">No match.</p>';
+}
+$('q').oninput=opts;
+function openSheet(id){['pick','addp','exp'].forEach(x=>$(x).classList.toggle('open',x===id))}
+$('bAdd').onclick=()=>{$('q').value='';opts();openSheet('pick');$('q').focus()};
+
+function choose(t){
+  const k=t[0],body=$('addbody');$('addt').textContent=t[1];openSheet('addp');say('');
+  if(k.endsWith('file')||k==='any'){
+    body.innerHTML=`<input type="file" id="fi" accept="${t[3]}" style="margin-top:10px">`;
+    $('fi').onchange=()=>{const f=$('fi').files[0];if(f)addFile(f)};
+  }else if(k==='html'){
+    body.innerHTML=`<textarea id="code" placeholder="Paste your HTML and CSS here (10,000+ lines is fine)" spellcheck="false"></textarea>
+    <div class="g3"><div><label class="f" for="hs">Seconds</label><input type="number" id="hs" value="3" min="1" max="20"></div>
+    <div><label class="f" for="hf">Frames/sec</label><input type="number" id="hf" value="10" min="4" max="15"></div>
+    <div><label class="f">Size</label><input type="text" value="960x540" disabled></div></div>
+    <div class="g2" style="margin-top:8px"><button id="hp">Paste</button><button class="rose" id="hr">Render</button></div>`;
+    $('hp').onclick=()=>paste($('code'),true);$('hr').onclick=addHtml;
+  }else{
+    body.innerHTML=`<div style="display:grid;grid-template-columns:1fr auto auto;gap:8px;margin-top:10px"><input type="text" id="lk" placeholder="https://..." inputmode="url" autocomplete="off">
+    <button id="lp" aria-label="Paste"><svg class="i" viewBox="0 0 24 24"><rect x="6" y="4" width="12" height="17" rx="2"/><path d="M9 4h6v3H9z"/></svg></button><button class="rose" id="la">Add</button></div>`;
+    $('lp').onclick=()=>paste($('lk'),false);$('la').onclick=()=>addLink(k);
+  }
+}
+async function paste(el,append){
+  try{const t=await navigator.clipboard.readText();if(!t)return;el.value=append?el.value+t:t.trim();say('Pasted.')}
+  catch(e){el.focus();say('Quick paste was blocked. Long-press the box and tap Paste.',true)}
+}
+
+/* ---------- adding clips ---------- */
+function addClip(o){
+  const vend=Math.max(0,...clips.filter(c=>c.kind!=='audio').map(c=>c.start+c.dur));
+  const src=o.duration||5,dur=Math.min(src,60);
+  const c={id:uid++,name:o.name,url:o.url,kind:o.kind,title:o.title||o.name,audio:!!o.audio,src,in:0,dur,vol:1,start:o.kind==='audio'?0:vend};
+  clips.push(c);sel=c.id;openSheet('');draw();say('Added.');
+}
+async function addFile(f){
+  const fd=new FormData();fd.append('file',f);say('');openSheet('');
+  try{addClip(await Loader.run($('ld'),{url:'/api/asset',body:fd,upload:true,est:40}))}catch(e){say(e.message,true)}
+}
+async function addLink(k){
+  const u=$('lk').value.trim();if(!u)return;say('');openSheet('');
+  try{
+    if(k==='vlink'){const d=await Loader.run($('ld'),{url:'/api/fetch',json:true,body:JSON.stringify({url:u}),est:45});
+      addClip({name:d.name,url:d.url,kind:'video',title:d.title,duration:d.info&&d.info.duration,audio:d.info&&d.info.audio})}
+    else addClip(await Loader.run($('ld'),{url:'/api/asset',json:true,body:JSON.stringify({url:u}),est:40}));
+  }catch(e){say(e.message,true)}
+}
+
+/* ---------- HTML -> frames, rendered on this phone ---------- */
+const NS='http://www.w3.org/1999/xhtml';
+function htmlScene(code){
+  const doc=new DOMParser().parseFromString(code,'text/html');
+  doc.querySelectorAll('script,iframe,video,canvas').forEach(n=>n.remove());
+  const css=[...doc.querySelectorAll('style')].map(s=>s.textContent).join('\n').replace(/(^|[\s,}])(html|body)(?=[\s,{.:#\[])/g,'$1.__r');
+  doc.querySelectorAll('style').forEach(s=>s.remove());
+  const xs=new XMLSerializer(),inner=[...doc.body.childNodes].map(n=>xs.serializeToString(n)).join('');
+  return {css,inner,style:doc.body.getAttribute('style')||'',cls:doc.body.getAttribute('class')||''};
+}
+async function renderFrame(sc,w,h,t,cv){
+  const freeze=`*,*::before,*::after{animation-play-state:paused!important;animation-delay:-${t}s!important;animation-fill-mode:both!important}`;
+  const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><foreignObject width="100%" height="100%">`+
+   `<div xmlns="${NS}" class="__r ${esc(sc.cls)}" style="width:${w}px;height:${h}px;overflow:hidden;margin:0;${esc(sc.style)}"><style><![CDATA[${sc.css}\n${freeze}]]></style>${sc.inner}</div></foreignObject></svg>`;
+  const img=new Image();img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg);await img.decode();
+  const x=cv.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,w,h);x.drawImage(img,0,0,w,h);
+}
+async function addHtml(){
+  const code=$('code').value;if(!code.trim()){say('Paste some HTML first.',true);return}
+  const secs=Math.min(20,Math.max(1,+$('hs').value||3)),fps=Math.min(15,Math.max(4,+$('hf').value||10)),W=960,H=540,n=Math.round(secs*fps);
+  openSheet('');say('Rendering frames on your phone...');
+  try{
+    const d=await Loader.run($('ld'),{url:'/publish',upload:true,est:30,body:async()=>{
+      const sc=htmlScene(code),cv=document.createElement('canvas');cv.width=W;cv.height=H;
+      const fd=new FormData();fd.append('format','mp4');fd.append('fps',fps);
+      for(let i=0;i<n;i++){await renderFrame(sc,W,H,i/fps,cv);
+        fd.append('frames',await new Promise(r=>cv.toBlob(r,'image/png')),`f${i}.png`);say(`Rendering frame ${i+1} of ${n}...`)}
+      say('');return fd}});
+    addClip({name:d.url.split('/').pop(),url:d.url,kind:'video',title:'HTML',duration:n/fps,audio:false});
+  }catch(e){say(e.message||'Could not render the HTML.',true)}
+}
+
+/* ---------- timeline ---------- */
+function draw(){
+  const tl=$('tl'),len=Math.max(10,total()+2);tl.style.width=len*pps+'px';
+  [...tl.querySelectorAll('.row')].forEach(r=>r.remove());
+  clips.forEach(c=>{
+    const r=document.createElement('div'),b=document.createElement('div');r.className='row';
+    b.className='blk '+c.kind+(c.id===sel?' sel':'');b.textContent=c.title;
+    b.style.left=c.start*pps+'px';b.style.width=Math.max(24,c.dur*pps)+'px';
+    let x0,s0,moved;
+    b.onpointerdown=e=>{b.setPointerCapture(e.pointerId);x0=e.clientX;s0=c.start;moved=false;select(c.id,true)};
+    b.onpointermove=e=>{if(x0==null)return;const dx=e.clientX-x0;if(Math.abs(dx)>3)moved=true;
+      if(moved){c.start=Math.max(0,+(s0+dx/pps).toFixed(1));b.style.left=c.start*pps+'px';$('pS').value=c.start}};
+    b.onpointerup=b.onpointercancel=()=>{x0=null;if(moved)draw()};
+    r.append(b);tl.append(r);
+  });
+  $('ph').max=Math.max(1,total());movePl();props();preview();
+}
+function select(id,keep){sel=id;if(!keep)draw();else{document.querySelectorAll('.blk').forEach((b,i)=>b.classList.toggle('sel',clips[i].id===id));props();preview()}}
+function movePl(){$('pl').style.left=(+$('ph').value)*pps+'px';$('pht').textContent=(+$('ph').value).toFixed(1)+' s'}
+$('ph').oninput=movePl;
+$('bZoom').onclick=()=>{pps=pps>=160?20:pps*2;draw()};
+function preview(){
+  const c=cur(),p=$('pv');
+  if(!c){p.textContent='Add a clip to start.';return}
+  p.innerHTML=c.kind==='audio'?`<audio src="${c.url}" controls></audio>`:c.kind==='gif'?`<img src="${c.url}" alt="">`:`<video src="${c.url}" controls playsinline></video>`;
+}
+function props(){
+  const c=cur();$('props').classList.toggle('open',!!c);if(!c)return;
+  $('pname').textContent=c.title;$('pS').value=c.start;$('pI').value=c.in;$('pD').value=c.dur;
+  $('pV').value=Math.round(c.vol*100);$('pVt').textContent=Math.round(c.vol*100)+'%';
+  $('pV').disabled=!(c.kind==='audio'||c.audio);
+}
+const num=(id,min,max)=>Math.min(max,Math.max(min,+$(id).value||0));
+$('pS').onchange=()=>{const c=cur();c.start=num('pS',0,3600);draw()};
+$('pI').onchange=()=>{const c=cur();c.in=num('pI',0,Math.max(0,c.src-0.1));c.dur=Math.min(c.dur,Math.max(0.1,c.src-c.in));draw()};
+$('pD').onchange=()=>{const c=cur();c.dur=Math.min(num('pD',0.1,600),Math.max(0.1,c.src-c.in));draw()};
+$('pV').oninput=()=>{const c=cur();c.vol=$('pV').value/100;$('pVt').textContent=$('pV').value+'%'};
+$('bSplit').onclick=()=>{
+  const c=cur(),t=+$('ph').value;
+  if(!c||t<=c.start+0.1||t>=c.start+c.dur-0.1){say('Move the playhead inside the clip first.',true);return}
+  const a=t-c.start,b={...c,id:uid++,start:t,in:+(c.in+a).toFixed(2),dur:+(c.dur-a).toFixed(2)};
+  c.dur=+a.toFixed(2);clips.splice(clips.indexOf(c)+1,0,b);sel=b.id;say('');draw();
+};
+$('bDup').onclick=()=>{const c=cur();if(!c)return;const b={...c,id:uid++,start:+(c.start+c.dur).toFixed(1)};clips.splice(clips.indexOf(c)+1,0,b);sel=b.id;draw()};
+$('bUp').onclick=()=>{const i=clips.indexOf(cur());if(i<clips.length-1){[clips[i],clips[i+1]]=[clips[i+1],clips[i]];draw()}};
+$('bDn').onclick=()=>{const i=clips.indexOf(cur());if(i>0){[clips[i],clips[i-1]]=[clips[i-1],clips[i]];draw()}};
+$('bDel').onclick=()=>{clips=clips.filter(c=>c.id!==sel);sel=clips.length?clips[clips.length-1].id:null;draw()};
+
+/* ---------- export ---------- */
+$('bExport').onclick=()=>{if(!clips.length){say('Add a clip first.',true);return}say('');openSheet($('exp').classList.contains('open')?'':'exp')};
+document.querySelectorAll('[data-f]').forEach(b=>b.onclick=()=>{fmt=b.dataset.f;document.querySelectorAll('[data-f]').forEach(x=>x.classList.toggle('on',x===b))});
+document.querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>{ratio=b.dataset.r;document.querySelectorAll('[data-r]').forEach(x=>x.classList.toggle('on',x===b))});
+$('bGo').onclick=async()=>{
+  $('bGo').disabled=true;$('res').style.display='none';say('');
+  const body=JSON.stringify({format:fmt,ratio,clips:clips.map(c=>({name:c.name,kind:c.kind,start:c.start,in:c.in,dur:c.dur,vol:c.vol,audio:c.audio}))});
+  try{
+    const d=await Loader.run($('ld'),{url:'/api/export',json:true,body,est:Math.max(15,total()*4)});
+    $('rprev').innerHTML=d.format==='mp3'?`<audio src="${d.url}" controls></audio>`:d.format==='gif'?`<img src="${d.url}" alt="" style="max-width:100%;max-height:220px">`:`<video src="${d.url}" controls playsinline style="max-width:100%;max-height:220px"></video>`;
+    $('link').value=d.url;$('dl').href=d.url+'?dl=1';$('res').style.display='block';say('Done. '+(d.size/1048576).toFixed(1)+' MB');
+  }catch(e){say(e.message,true)}
+  finally{$('bGo').disabled=false}
+};
+$('cp').onclick=async()=>{const l=$('link');try{await navigator.clipboard.writeText(l.value)}catch(_){l.select();document.execCommand('copy')}
+  $('cp').textContent='Copied';setTimeout(()=>$('cp').textContent='Copy link',1500)};
+$('link').onclick=()=>$('link').select();
+draw();
+</script>
+</body>
+</html>
