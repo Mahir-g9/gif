@@ -5,6 +5,8 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const net = require('net');
+const { pipeline } = require('stream/promises');
+const { Readable, Transform } = require('stream');
 const { execFile } = require('child_process');
 const ffmpeg = require('fluent-ffmpeg');
 const { Pool } = require('pg');
@@ -79,7 +81,7 @@ async function store(filePath, name, mime) {
     const { error } = await supabase.storage.from(BUCKET).upload(name, buf, { contentType: mime });
     if (error) throw error;
     await pool.query('insert into hosted_media (filename, kind) values ($1, $2)',
-        [name, mime === 'image/gif' ? 'gif' : 'video']);
+        [name, mime === 'image/gif' ? 'gif' : mime.startsWith('audio') ? 'audio' : 'video']);
 }
 
 // ---- Local cache (Discord needs fast direct files with Range support) ----
@@ -102,7 +104,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Direct link. Falls back to Supabase Storage if the local copy is gone (Render restarts).
 app.get('/uploads/:name', async (req, res) => {
     const name = path.basename(req.params.name);
-    if (!/^[\w-]+\.(mp4|gif)$/.test(name)) return res.sendStatus(404);
+    if (!/^[\w-]+\.(mp4|gif|mp3)$/.test(name)) return res.sendStatus(404);
     const p = path.join(uploadDir, name);
     try {
         if (!fs.existsSync(p)) {
@@ -336,7 +338,8 @@ app.post('/api/fetch', express.json(), async (req, res) => {
         const size = fs.statSync(out).size;
         if (size > MAX_VIDEO_MB * 1024 * 1024) { fs.rmSync(out, { force: true }); throw new Error('Video is over ' + MAX_VIDEO_MB + ' MB.'); }
         await store(out, name, 'video/mp4');
-        res.json({ url: fullUrl(req, name), name, title, size });
+        const info = await probe(out);
+        res.json({ url: fullUrl(req, name), name, title, size, info });
     } catch (e) {
         console.error(e);
         fs.readdirSync(uploadDir).filter(f => f.startsWith(id + '.')).forEach(f => fs.rm(path.join(uploadDir, f), { force: true }, () => {}));
@@ -379,6 +382,175 @@ async function ensureLocal(name) {
     }
     return p;
 }
+
+// ---- Editor: asset import + multi-clip export ------------------------------
+function probe(file) { // reads stream info from ffmpeg's own output (no ffprobe needed)
+    return new Promise(resolve => {
+        execFile(require('ffmpeg-static'), ['-hide_banner', '-i', file], (e, so, se) => {
+            const t = String(se || ''), L = t.split('\n'), d = t.match(/Duration: (\d+):(\d+):([\d.]+)/);
+            resolve({
+                duration: d ? parseInt(d[1], 10) * 3600 + parseInt(d[2], 10) * 60 + parseFloat(d[3]) : 0,
+                gif: /Input #0, gif/.test(t),
+                video: L.some(l => /Stream #.*Video:/.test(l) && !/attached pic/.test(l)),
+                audio: L.some(l => /Stream #.*Audio:/.test(l))
+            });
+        });
+    });
+}
+
+function toMp3(input, output) {
+    return new Promise((resolve, reject) => {
+        ffmpeg(input).noVideo().audioCodec('libmp3lame').audioBitrate('192k')
+            .on('end', resolve).on('error', reject).save(output);
+    });
+}
+
+// Turns any uploaded or downloaded file into a stored GIF, MP4 or MP3 asset.
+async function ingest(file, orig, req) {
+    const info = await probe(file), id = uuidv4().slice(0, 8);
+    let kind, name, mime;
+    if (info.gif) { kind = 'gif'; name = id + '.gif'; mime = 'image/gif'; }
+    else if (info.video) { kind = 'video'; name = id + '.mp4'; mime = 'video/mp4'; }
+    else if (info.audio) { kind = 'audio'; name = id + '.mp3'; mime = 'audio/mpeg'; }
+    else throw new Error('That is not a video, GIF or audio file. For YouTube, Facebook and similar sites, use Video link.');
+    const out = path.join(uploadDir, name);
+    if (kind === 'gif') { fs.copyFileSync(file, out); await shrinkIfNeeded(out); }
+    else if (kind === 'video') await toMp4(file, out);
+    else await toMp3(file, out);
+    if (fs.statSync(out).size > MAX_VIDEO_MB * 1024 * 1024) {
+        fs.rmSync(out, { force: true });
+        throw new Error('The file is over ' + MAX_VIDEO_MB + ' MB after conversion.');
+    }
+    await store(out, name, mime);
+    const i = await probe(out);
+    return { name, kind, url: fullUrl(req, name), title: (orig || name).slice(0, 60), duration: i.duration, audio: kind !== 'gif' && i.audio };
+}
+
+const assetUpload = multer({ dest: path.join(os.tmpdir(), 'assets'), limits: { fileSize: 100 * 1024 * 1024 } });
+
+app.post('/api/asset', express.json(), assetUpload.single('file'), async (req, res) => {
+    let tmp = req.file && req.file.path;
+    try {
+        if (!tmp) { // import from a direct link
+            const link = String((req.body && req.body.url) || '').trim();
+            if (!safeUrl(link)) return res.status(400).json({ error: 'Enter a valid link starting with http or https.' });
+            const r = await fetch(link, { signal: AbortSignal.timeout(60000) });
+            if (!r.ok) throw new Error('The link answered with an error (' + r.status + ').');
+            tmp = path.join(os.tmpdir(), 'dl-' + uuidv4());
+            let got = 0;
+            await pipeline(Readable.fromWeb(r.body), new Transform({
+                transform(chunk, enc, cb) {
+                    got += chunk.length;
+                    got > MAX_VIDEO_MB * 1024 * 1024 ? cb(new Error('The file is over ' + MAX_VIDEO_MB + ' MB.')) : cb(null, chunk);
+                }
+            }), fs.createWriteStream(tmp));
+        }
+        res.json(await ingest(tmp, req.file ? req.file.originalname : '', req));
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ error: e.message || 'Could not add that file.' });
+    } finally {
+        if (tmp) fs.rm(tmp, { force: true }, () => {});
+    }
+});
+
+// Builds the ffmpeg filter graph. Input 0 is a black canvas, clips are inputs 1..n.
+function exportGraph(clips, format, W, H) {
+    const f = [], al = [];
+    let prev = '0:v';
+    clips.forEach((c, i) => {
+        const k = i + 1;
+        if (c.kind !== 'audio' && format !== 'mp3') {
+            f.push(`[${k}:v]trim=start=${c.in}:duration=${c.dur},setpts=PTS-STARTPTS+${c.start}/TB,scale=${W}:${H}:force_original_aspect_ratio=decrease[c${k}]`);
+            f.push(`[${prev}][c${k}]overlay=x=(W-w)/2:y=(H-h)/2:eof_action=pass[v${k}]`);
+            prev = 'v' + k;
+        }
+        if (c.kind === 'audio' || (c.kind === 'video' && c.audio)) {
+            const ms = Math.round(c.start * 1000);
+            f.push(`[${k}:a]atrim=start=${c.in}:duration=${c.dur},asetpts=PTS-STARTPTS,adelay=${ms}|${ms},volume=${c.vol}[a${k}]`);
+            al.push(`[a${k}]`);
+        }
+    });
+    if (al.length) f.push(`${al.join('')}amix=inputs=${al.length}:normalize=0:duration=longest[aout]`);
+    if (format !== 'mp3') f.push(`[${prev}]format=yuv420p[vout]`);
+    return { filter: f.join(';'), hasAudio: al.length > 0 };
+}
+
+const SIZES = { '16:9': [960, 540], '9:16': [540, 960], '1:1': [640, 640] };
+let exporting = false;
+
+app.post('/api/export', express.json({ limit: '1mb' }), async (req, res) => {
+    if (exporting) return res.status(429).json({ error: 'Another export is running. Try again in a minute.' });
+    const b = req.body || {};
+    const format = ['mp4', 'gif', 'mp3'].includes(b.format) ? b.format : 'mp4';
+    const [W, H] = SIZES[b.ratio] || SIZES['16:9'];
+    const clips = (Array.isArray(b.clips) ? b.clips : []).slice(0, 20).map(c => ({
+        name: path.basename(String(c.name || '')), kind: c.kind,
+        start: num(c.start, 0, 3600, 0), in: num(c.in, 0, 3600, 0), dur: num(c.dur, 0.1, 600, 1),
+        vol: num(c.vol, 0, 2, 1), audio: !!c.audio
+    })).filter(c => /^[\w-]+\.(mp4|gif|mp3)$/.test(c.name));
+    if (!clips.length) return res.status(400).json({ error: 'Add at least one clip.' });
+    const T = Math.max(...clips.map(c => c.start + c.dur));
+    if (T > 60) return res.status(400).json({ error: 'The project is longer than 60 seconds.' });
+    exporting = true;
+    const id = uuidv4().slice(0, 8), made = [];
+    try {
+        const cmd = ffmpeg();
+        cmd.input(`color=c=black:s=${W}x${H}:r=30:d=${T}`).inputFormat('lavfi');
+        for (const c of clips) {
+            const p = await ensureLocal(c.name);
+            if (!p) throw new Error('A clip is no longer available (files expire after 24 hours).');
+            cmd.input(p);
+        }
+        const g = exportGraph(clips, format, W, H);
+        if (format === 'mp3' && !g.hasAudio) throw new Error('None of the clips has audio.');
+        const opts = ['-t', String(T)];
+        if (format === 'mp3') opts.push('-map', '[aout]', '-vn', '-c:a', 'libmp3lame', '-b:a', '192k');
+        else {
+            opts.push('-map', '[vout]', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '27', '-pix_fmt', 'yuv420p', '-movflags', '+faststart');
+            if (g.hasAudio) opts.push('-map', '[aout]', '-c:a', 'aac', '-b:a', '160k');
+        }
+        const ext = format === 'mp3' ? 'mp3' : 'mp4';
+        const mid = path.join(uploadDir, id + '.' + ext);
+        made.push(mid);
+        await new Promise((resolve, reject) => cmd.complexFilter(g.filter).outputOptions(opts).on('end', resolve).on('error', reject).save(mid));
+        let name = id + '.' + ext, out = mid, mime = format === 'mp3' ? 'audio/mpeg' : 'video/mp4';
+        if (format === 'gif') {
+            name = id + '.gif'; out = path.join(uploadDir, name); mime = 'image/gif'; made.push(out);
+            await makeGif(mid, { width: 480, fps: 12 }, out);
+            fs.rmSync(mid, { force: true });
+        }
+        const size = fs.statSync(out).size;
+        if (size > MAX_VIDEO_MB * 1024 * 1024) throw new Error('The result is over ' + MAX_VIDEO_MB + ' MB. Make the project shorter.');
+        await store(out, name, mime);
+        res.json({ url: fullUrl(req, name), name, size, format });
+    } catch (e) {
+        console.error(e);
+        made.forEach(f => fs.rm(f, { force: true }, () => {}));
+        res.status(500).json({ error: 'Could not export: ' + (e.message || e) });
+    } finally {
+        exporting = false;
+    }
+});
+
+// ---- Admin: upload files and commit them to GitHub ---------------------------
+const admin = require('./admin');
+const adminUpload = multer({ storage: multer.memoryStorage(), limits: { files: 30, fileSize: 5 * 1024 * 1024 } });
+
+app.post('/api/admin/plan', admin.guard, express.json(), async (req, res) => {
+    try {
+        const names = (Array.isArray(req.body.names) ? req.body.names : []).slice(0, 30).map(n => String(n).split(/[\\/]/).pop());
+        res.json(await admin.plan(names));
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/admin/push', admin.guard, adminUpload.array('files', 30), async (req, res) => {
+    try {
+        const paths = JSON.parse(req.body.paths || '[]');
+        const files = (req.files || []).map((f, i) => ({ path: String(paths[i] || ''), content: f.buffer }));
+        res.json(await admin.push(files, String(req.body.message || 'Update files').slice(0, 200)));
+    } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
+});
 
 // ---- Album -----------------------------------------------------------------
 app.get('/api/media', async (req, res) => {
