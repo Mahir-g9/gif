@@ -2,11 +2,15 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark light">
+<meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Animation Studio</title>
 <style>
 :root{--k:#0f172a;--w:#ffffff;--r:#ef4444;--line:rgb(255 255 255 / .25);
 --out:cubic-bezier(.16,1,.3,1);--io:cubic-bezier(.65,0,.35,1);--spring:cubic-bezier(.34,1.56,.64,1)}
+@media (prefers-color-scheme:light){:root{--k:#ffffff;--w:#0f172a;--line:rgb(15 23 42 / .25)}}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;margin:0}
 body{background:var(--k);color:var(--w);font:500 14px/1.3 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
@@ -19,7 +23,7 @@ button:active,a.btn:active{transform:scale(.95);transition:transform 100ms var(-
 button:focus-visible,a.btn:focus-visible,input:focus-visible{outline:2px solid var(--r);outline-offset:2px}
 button:disabled{opacity:.3;pointer-events:none}
 .on{background:var(--w);color:var(--k);border-color:var(--w)}
-.red{background:var(--r);border-color:var(--r);color:var(--w)}
+.red{background:var(--r);border-color:var(--r);color:#fff}
 header{display:flex;align-items:center;gap:6px;padding:8px;border-bottom:2px solid var(--line)}
 header h1{font-size:16px;margin:0;flex:1}
 .sw{position:relative;width:96px;padding:0;overflow:hidden}
@@ -27,8 +31,16 @@ header h1{font-size:16px;margin:0;flex:1}
 .sw i{position:absolute;inset:0 auto 0 0;width:50%;background:var(--w);transition:transform 250ms var(--out)}
 .sw[aria-checked=false] span:first-of-type,.sw[aria-checked=true] span:nth-of-type(2){color:var(--k)}
 .sw[aria-checked=true] i{transform:translateX(100%)}
-#stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:4px}
-#view{width:min(100%,calc((100dvh - 236px)*.8));aspect-ratio:4/5;background:#fff;outline:2px solid var(--line);border-radius:4px;touch-action:none;cursor:crosshair}
+#stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:4px;position:relative;overflow:hidden;touch-action:none}
+#view{width:min(100%,calc((100dvh - 236px)*var(--ar,.8)));aspect-ratio:var(--arr,4/5);background:#fff;outline:2px solid var(--line);border-radius:4px;touch-action:none;cursor:crosshair;transform-origin:center}
+body{touch-action:none}#strip{touch-action:pan-x}#layers,#picker,#sizep,#menu,#modal{touch-action:pan-y}
+.fl.on{background:var(--w);color:var(--k)}
+.fl{position:fixed;z-index:15;min-width:40px;height:40px;padding:0;background:var(--k);border-color:var(--w)}
+#focusB{right:8px;top:calc(env(safe-area-inset-top,0px) + 70px)}body.focus #focusB{top:calc(env(safe-area-inset-top,0px) + 8px)}
+#fundo,#fredo{display:none;top:calc(env(safe-area-inset-top,0px) + 8px)}#fundo{left:8px}#fredo{left:56px}
+body.focus #fundo,body.focus #fredo{display:flex}body.focus header{display:none}
+body.focus #view{width:min(100%,calc((100dvh - 176px)*var(--ar,.8)))}
+#zoomB{position:absolute;left:8px;bottom:8px;display:none;z-index:5;min-height:36px;height:36px;background:var(--k);border-color:var(--w)}#zoomB.show{display:flex}
 #tl{display:flex;align-items:center;gap:8px;padding:8px 12px;border-top:2px solid var(--line)}
 #strip{flex:1;display:flex;gap:8px;overflow-x:auto;padding:4px 2px;scrollbar-width:none}
 #strip::-webkit-scrollbar{display:none}
@@ -44,15 +56,15 @@ header h1{font-size:16px;margin:0;flex:1}
 .sp{flex:1}
 .c{width:32px;min-width:32px;height:32px;border-radius:50%;padding:0}
 .c.sel{outline:2px solid var(--w);outline-offset:2px}
-#menu,#layers,#picker{position:fixed;background:var(--k);border:2px solid var(--w);border-radius:14px;padding:8px;opacity:0;pointer-events:none;
+#menu,#layers,#picker,#sizep{position:fixed;background:var(--k);border:2px solid var(--w);border-radius:14px;padding:8px;opacity:0;pointer-events:none;
 transform:translateY(12px);transition:opacity 200ms var(--out),transform 350ms var(--out)}
-#menu.open,#layers.open,#picker.open{opacity:1;transform:none;pointer-events:auto}
-#menu{display:flex;flex-direction:column;gap:6px;width:160px;z-index:20}
-#layers,#picker{inset-inline:12px;margin-inline:auto;width:min(420px,100% - 24px);bottom:calc(68px + env(safe-area-inset-bottom));max-height:60dvh;overflow:auto;z-index:10}
+#menu.open,#layers.open,#picker.open,#sizep.open{opacity:1;transform:none;pointer-events:auto}
+#menu{display:flex;flex-direction:column;gap:6px;width:176px;z-index:20}
+#layers,#picker,#sizep{inset-inline:12px;margin-inline:auto;width:min(420px,100% - 24px);bottom:calc(68px + env(safe-area-inset-bottom));max-height:60dvh;overflow:auto;z-index:10}
 #picker canvas{width:100%;display:block;border-radius:8px;touch-action:none;margin-bottom:8px}
 #picker .ph{margin:0}
 #pv{width:40px;height:40px;border-radius:10px;border:2px solid var(--line);flex:none}
-#picker input{flex:1;min-width:0;height:40px;background:var(--k);color:var(--w);border:2px solid var(--line);border-radius:10px;padding:0 12px;font:inherit}
+#picker input,#sizep input{flex:1;min-width:0;height:40px;background:var(--k);color:var(--w);border:2px solid var(--line);border-radius:10px;padding:0 12px;font:inherit}
 .ph{display:flex;align-items:center;gap:8px;margin-bottom:6px}
 .ph b{flex:1}
 #layers small{display:block;margin-bottom:8px;opacity:.7}
@@ -83,6 +95,9 @@ transform:translateY(12px);transition:opacity 200ms var(--out),transform 350ms v
 <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 010 11H11"/></symbol>
 <symbol id="i-redo" viewBox="0 0 24 24"><path d="M15 14l5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 000 11H13"/></symbol>
 <symbol id="i-shapes" viewBox="0 0 24 24"><rect x="3" y="12" width="9" height="9" rx="1"/><circle cx="16.5" cy="7.5" r="4.5"/></symbol>
+<symbol id="i-size" viewBox="0 0 24 24"><path d="M4 9V4h5"/><path d="M20 15v5h-5"/><path d="M4 4l6 6"/><path d="M20 20l-6-6"/></symbol>
+<symbol id="i-full" viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 00-2 2v3M21 8V5a2 2 0 00-2-2h-3M3 16v3a2 2 0 002 2h3M16 21h3a2 2 0 002-2v-3"/></symbol>
+<symbol id="i-exit" viewBox="0 0 24 24"><path d="M8 3v3a2 2 0 01-2 2H3M21 8h-3a2 2 0 01-2-2V3M3 16h3a2 2 0 012 2v3M16 21v-3a2 2 0 012-2h3"/></symbol>
 <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></symbol>
 <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
 <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z"/></symbol>
@@ -105,11 +120,12 @@ transform:translateY(12px);transition:opacity 200ms var(--out),transform 350ms v
   <button id="publish" class="red"><svg class="i"><use href="#i-send"/></svg>Publish</button>
 </header>
 
-<main id="stage"><canvas id="view" width="600" height="750"></canvas></main>
+<main id="stage"><canvas id="view" width="600" height="750"></canvas><button id="zoomB" aria-label="Reset zoom and rotation">100%</button></main>
 
 <section id="tl">
   <button id="play" aria-label="Play"><svg class="i"><use href="#i-play"/></svg></button>
   <button id="fps" aria-label="Frames per second">8 fps</button>
+  <button id="sizeB" aria-label="Canvas size"><svg class="i"><use href="#i-size"/></svg></button>
   <div id="strip"></div>
   <button id="add" aria-label="Add frame"><svg class="i"><use href="#i-plus"/></svg></button>
 </section>
@@ -129,6 +145,17 @@ transform:translateY(12px);transition:opacity 200ms var(--out),transform 350ms v
 </nav>
 
 <aside id="picker" aria-label="Colour picker"><canvas id="sv" width="300" height="170"></canvas><canvas id="hue" width="300" height="28"></canvas><div class="ph"><i id="pv"></i><input id="hex" maxlength="7" spellcheck="false" aria-label="Hex colour"></div></aside>
+<button id="focusB" class="fl" aria-label="Focus mode: hide bars, fullscreen, keep screen on"><svg class="i"><use href="#i-full"/></svg></button>
+<button id="fundo" class="fl" aria-label="Undo" disabled><svg class="i"><use href="#i-undo"/></svg></button>
+<button id="fredo" class="fl" aria-label="Redo" disabled><svg class="i"><use href="#i-redo"/></svg></button>
+<aside id="sizep" aria-label="Canvas size">
+  <div class="ph"><b>Canvas size</b></div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">
+    <button data-s="600x750">4:5 · 600×750</button><button data-s="700x700">1:1 · 700×700</button>
+    <button data-s="960x540">16:9 · 960×540</button><button data-s="540x960">9:16 · 540×960</button></div>
+  <div class="ph"><input id="sw" type="number" inputmode="numeric" aria-label="Width" placeholder="Width"><b>×</b><input id="sh" type="number" inputmode="numeric" aria-label="Height" placeholder="Height"><button id="sapply" class="red">Apply</button></div>
+  <small id="smsg">Existing drawings are scaled to fit. Undo history is cleared.</small>
+</aside>
 <aside id="layers" aria-label="Layers panel"></aside>
 <div id="menu" role="menu"></div>
 <div id="modal"><div id="mbody"></div></div>
@@ -137,10 +164,10 @@ transform:translateY(12px);transition:opacity 200ms var(--out),transform 350ms v
 <script>
 const $=s=>document.querySelector(s);
 const ic=n=>`<svg class="i"><use href="#i-${n}"/></svg>`;
-const W=600,H=750,view=$('#view'),vx=view.getContext('2d'),strip=$('#strip'),panel=$('#layers'),menu=$('#menu');
+let W=600,H=750;const view=$('#view'),vx=view.getContext('2d'),strip=$('#strip'),panel=$('#layers'),menu=$('#menu');
 const mk=()=>{const c=document.createElement('canvas');c.width=W;c.height=H;return c};
 let meta=[{lock:false}],frames=[[mk()]],cf=0,cl=0,tool='pen',color='#0f172a',fps=8,timer=null,fmt='gif';
-const blank=()=>meta.map(mk),tmp=mk(),tx=tmp.getContext('2d');
+let tmp=mk(),tx=tmp.getContext('2d');const blank=()=>meta.map(mk);
 
 function comp(ctx,list,w,h){ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h);list.forEach(c=>ctx.drawImage(c,0,0,w,h))}
 const render=()=>comp(vx,frames[cf],W,H);
@@ -180,8 +207,8 @@ function openMenu(i,b){
     const m=document.createElement('button');m.textContent=t;if(cls)m.className=cls;
     m.onclick=()=>{fn();menu.classList.remove('open');drawStrip();render()};menu.append(m);
   });
-  menu.style.left=Math.max(8,Math.min(r.left,innerWidth-168))+'px';
-  menu.style.bottom=(innerHeight-r.top+8)+'px';menu.classList.add('open');
+  menu.style.left=Math.max(8,Math.min(r.left,innerWidth-184))+'px';
+  menu.style.top='auto';menu.style.bottom=(innerHeight-r.top+8)+'px';menu.classList.add('open');
 }
 document.addEventListener('pointerdown',e=>{if(!menu.contains(e.target))menu.classList.remove('open')});
 $('#add').onclick=()=>{stopPlay();frames.push(blank());cf=frames.length-1;drawStrip();render()};
@@ -194,7 +221,21 @@ $('#fps').onclick=e=>{const o=[4,8,12,24];fps=o[(o.indexOf(fps)+1)%o.length];e.c
 
 /* ---------- drawing ---------- */
 let down=false,last;
-const pos=e=>{const r=view.getBoundingClientRect();return[(e.clientX-r.left)*W/r.width,(e.clientY-r.top)*H/r.height]};
+let pr=1,strokeOn=false,pend=null,pendTimer=0,g=null,pen=false,penT=0;
+const T={s:1,a:0,x:0,y:0},stage=$('#stage'),touches=new Map();
+function applyT(){
+  view.style.transform=`translate(${T.x}px,${T.y}px) rotate(${T.a}rad) scale(${T.s})`;
+  const m=Math.abs(T.s-1)>.01||Math.abs(T.a)>.01||Math.abs(T.x)>1||Math.abs(T.y)>1,z=$('#zoomB');
+  z.classList.toggle('show',m);z.textContent=Math.round(T.s*100)+'%';
+}
+$('#zoomB').onclick=()=>{T.s=1;T.a=0;T.x=0;T.y=0;applyT()};
+function pos(e){ // screen point -> canvas pixel, through zoom and rotation
+  const r=view.getBoundingClientRect(),dx=e.clientX-(r.left+r.width/2),dy=e.clientY-(r.top+r.height/2),c=Math.cos(-T.a),s=Math.sin(-T.a);
+  return[W/2+((dx*c-dy*s)/T.s)*W/view.offsetWidth,H/2+((dx*s+dy*c)/T.s)*H/view.offsetHeight];
+}
+const cap=id=>{try{stage.setPointerCapture(id)}catch(err){}};
+const press=e=>e.pointerType==='pen'&&e.pressure>0?Math.min(1,.25+e.pressure*.9):1;
+const penActive=()=>pen&&Date.now()-penT<120000; // palm rejection while a pen is in use
 function stroke(a,b){
   const layer=frames[cf][cl],x=layer.getContext('2d'),base=cl>0?frames[cf][cl-1]:layer,
     lock=meta[cl].lock&&tool!=='eraser'&&base.d; touch(layer); // an empty base never blocks drawing
@@ -219,11 +260,102 @@ function fill(px,py){ // flood fill what you see, paint the result on the active
       const n=ny*W+nx;if(v[n])continue;v[n]=1;const d=df(n);if(d<=90)st.push(n);else if(d<=500)put(n)}} // soft edges get covered too
   lx.putImageData(o,0,0);layer.d=1;touch(layer);render();
 }
-view.onpointerdown=e=>{stopPlay();closeSheets();if(tool==="fill"){const p=pos(e);save();fill(p[0],p[1]);paint(cf);return}
-  view.setPointerCapture(e.pointerId);down=true;last=pos(e);save();if(tool==='shape'){sp=last;ep=null;return}stroke(last,last)};
-view.onpointermove=e=>{if(!down)return;const p=pos(e);if(tool==='shape'){render();shapeStroke(vx,sp,p);ep=p;return}stroke(last,p);last=p};
-view.onpointerup=view.onpointercancel=()=>{if(down){down=false;
-  if(tool==='shape'&&ep){const l=frames[cf][cl];shapeStroke(l.getContext('2d'),sp,ep);l.d=1;touch(l);ep=null;render()}paint(cf)}};
+function beginStroke(p){
+  save();strokeOn=true;
+  if(tool==='fill'){fill(p[0],p[1]);paint(cf);strokeOn=false;return}
+  down=true;last=p;
+  if(tool==='shape'){sp=p;ep=null;return}
+  stroke(p,p);
+}
+function cancelStroke(){ // a second finger landed: remove anything the first one drew
+  clearTimeout(pendTimer);pend=null;
+  if(down&&strokeOn){const e=undoS.pop();if(e){e.c.getContext('2d').putImageData(e.img,0,0);e.c.d=e.d;touch(e.c);hist()}paint(cf)}
+  down=false;strokeOn=false;ep=null;render();
+}
+function flushPend(){if(!pend)return;clearTimeout(pendTimer);const p=pos(pend);pend=null;beginStroke(p)}
+function two(){const a=[...touches.values()];return[a[0],a[1]]}
+function startGesture(){
+  const[p,q]=two(),cx=(p[0]+q[0])/2,cy=(p[1]+q[1])/2,r=view.getBoundingClientRect(),ox=r.left+r.width/2-T.x,oy=r.top+r.height/2-T.y;
+  const dx=cx-ox-T.x,dy=cy-oy-T.y,c=Math.cos(-T.a),s=Math.sin(-T.a);
+  g={ox,oy,d:Math.hypot(q[0]-p[0],q[1]-p[1])||1,an:Math.atan2(q[1]-p[1],q[0]-p[0]),s:T.s,a:T.a,lx:(dx*c-dy*s)/T.s,ly:(dx*s+dy*c)/T.s};
+}
+function moveGesture(){ // two fingers: zoom, move and rotate the canvas only
+  if(!g)startGesture();
+  const[p,q]=two(),cx=(p[0]+q[0])/2,cy=(p[1]+q[1])/2;
+  T.s=Math.min(8,Math.max(.25,g.s*Math.hypot(q[0]-p[0],q[1]-p[1])/g.d));
+  T.a=g.a+Math.atan2(q[1]-p[1],q[0]-p[0])-g.an;
+  const c=Math.cos(T.a),s=Math.sin(T.a);
+  T.x=cx-g.ox-T.s*(g.lx*c-g.ly*s);T.y=cy-g.oy-T.s*(g.lx*s+g.ly*c);applyT();
+}
+stage.onpointerdown=e=>{
+  stopPlay();
+  if(e.pointerType==='pen'){pen=true;penT=Date.now()}
+  if(e.pointerType==='touch'){
+    touches.set(e.pointerId,[e.clientX,e.clientY]);cap(e.pointerId);
+    if(touches.size>=2){cancelStroke();startGesture();return}
+    if(penActive()||e.target!==view)return;
+    closeSheets();pend=e;pendTimer=setTimeout(()=>{if(touches.size===1)flushPend()},70); // wait: a 2nd finger must not leave a dot
+    return;
+  }
+  if(e.target!==view)return;
+  closeSheets();cap(e.pointerId);pr=press(e);beginStroke(pos(e));
+};
+stage.onpointermove=e=>{
+  if(e.pointerType==='pen')penT=Date.now();
+  if(e.pointerType==='touch'){
+    if(!touches.has(e.pointerId))return;touches.set(e.pointerId,[e.clientX,e.clientY]);
+    if(touches.size>=2){moveGesture();return}
+    if(pend){if(Math.hypot(e.clientX-pend.clientX,e.clientY-pend.clientY)<5)return;flushPend()}
+  }
+  if(!down)return;
+  const list=e.getCoalescedEvents?e.getCoalescedEvents():[];
+  for(const ev of (list.length?list:[e])){
+    pr=press(ev);const p=pos(ev);
+    if(tool==='shape'){render();shapeStroke(vx,sp,p);ep=p}else{stroke(last,p);last=p}
+  }
+};
+stage.onpointerup=stage.onpointercancel=e=>{
+  if(e.pointerType==='touch'){
+    const wasTwo=touches.size>=2;touches.delete(e.pointerId);
+    if(wasTwo){if(touches.size<2)g=null;return} // ending a zoom never draws
+    flushPend(); // a quick single tap still makes a dot
+  }
+  if(down){down=false;strokeOn=false;
+    if(tool==='shape'&&ep){const l=frames[cf][cl];shapeStroke(l.getContext('2d'),sp,ep);l.d=1;touch(l);ep=null;render()}paint(cf)}
+};
+stage.addEventListener('wheel',e=>{ // mouse wheel / trackpad zoom
+  e.preventDefault();
+  const r=view.getBoundingClientRect(),ox=r.left+r.width/2-T.x,oy=r.top+r.height/2-T.y,dx=e.clientX-ox-T.x,dy=e.clientY-oy-T.y,c=Math.cos(-T.a),s=Math.sin(-T.a);
+  const lx=(dx*c-dy*s)/T.s,ly=(dx*s+dy*c)/T.s;
+  T.s=Math.min(8,Math.max(.25,T.s*Math.exp(-e.deltaY*.0015)));
+  const c2=Math.cos(T.a),s2=Math.sin(T.a);T.x=e.clientX-ox-T.s*(lx*c2-ly*s2);T.y=e.clientY-oy-T.s*(lx*s2+ly*c2);applyT();
+},{passive:false});
+stage.oncontextmenu=e=>e.preventDefault();
+document.addEventListener('gesturestart',e=>e.preventDefault()); // stops iOS page pinch-zoom
+/* ---------- focus mode: one tap does hide top bar + fullscreen + keep screen on ---------- */
+let wake=null,wantWake=false,fsOn=false;
+const fsEl=()=>document.fullscreenElement||document.webkitFullscreenElement;
+const root=document.documentElement,canFs=!!(root.requestFullscreen||root.webkitRequestFullscreen),canWake='wakeLock' in navigator;
+const isFocus=()=>document.body.classList.contains('focus');
+function syncFl(){const f=isFocus();$('#focusB').classList.toggle('on',f);$('#focusB').innerHTML=ic(f?'exit':'full')}
+async function holdWake(){
+  try{wake=await navigator.wakeLock.request('screen');wake.addEventListener('release',()=>{wake=null})}catch(e){wake=null}
+}
+async function allOn(){
+  document.body.classList.add('focus');syncFl();
+  if(canFs&&!fsEl()){fsOn=true;try{await(root.requestFullscreen||root.webkitRequestFullscreen).call(root,{navigationUI:'hide'})}catch(e){fsOn=false}}
+  if(canWake&&!wantWake){wantWake=true;await holdWake()}
+}
+async function allOff(){
+  document.body.classList.remove('focus');fsOn=false;syncFl();
+  if(fsEl()){try{await(document.exitFullscreen||document.webkitExitFullscreen).call(document)}catch(e){}}
+  if(wantWake){wantWake=false;try{await wake.release()}catch(e){}wake=null}
+}
+const onFs=()=>{if(!fsEl()&&fsOn&&isFocus())allOff();else syncFl()}; // leaving fullscreen with the system gesture turns everything off
+document.addEventListener('fullscreenchange',onFs);document.addEventListener('webkitfullscreenchange',onFs);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&wantWake&&!wake)holdWake()}); // the system drops the lock while the tab is hidden
+$('#focusB').onclick=()=>isFocus()?allOff():allOn();
+$('#fundo').onclick=()=>$('#undo').click();$('#fredo').onclick=()=>$('#redo').click();
 
 function setTool(t){tool=t;document.querySelectorAll('[data-tool]').forEach(x=>x.classList.toggle('on',x.dataset.tool===t))}
 document.querySelectorAll('[data-tool]').forEach(b=>b.onclick=()=>{if(b.id!=='brushB'&&b.id!=='shapeB')setTool(b.dataset.tool)});
@@ -261,11 +393,11 @@ function drawLayers(){
   $('#mask').onclick=()=>{meta[cl].lock=!meta[cl].lock;drawLayers()};
 }
 /* ---------- sheets + custom colour picker ---------- */
-const picker=$('#picker'),sheets=[panel,picker],sv=$('#sv'),sc=sv.getContext('2d'),hu=$('#hue'),hc=hu.getContext('2d'),hex=$('#hex');
+const picker=$('#picker'),sheets=[panel,picker,$('#sizep')],sv=$('#sv'),sc=sv.getContext('2d'),hu=$('#hue'),hc=hu.getContext('2d'),hex=$('#hex');
 let hsv=[200,.75,.95];
 function closeSheets(){sheets.forEach(s=>s.classList.remove('open'));$('#lbtn').classList.remove('on')}
 function sheet(el){const o=!el.classList.contains('open');closeSheets();if(!o)return;el.classList.add('open');
-  if(el===panel){$('#lbtn').classList.add('on');drawLayers()}else drawPick()}
+  if(el===panel){$('#lbtn').classList.add('on');drawLayers()}else if(el===picker)drawPick()}
 $('#lbtn').onclick=()=>sheet(panel);
 function hsv2(h,s,v){const f=n=>{const k=(n+h/60)%6;return v-v*s*Math.max(0,Math.min(k,4-k,1))};
   return'#'+[f(5),f(3),f(1)].map(x=>Math.round(x*255).toString(16).padStart(2,'0')).join('')}
@@ -317,19 +449,20 @@ $('#publish').onclick=async()=>{
 };
 
 /* ---------- brushes, shapes, popup ---------- */
-function popup(list,b){const r=b.getBoundingClientRect();menu.innerHTML='';
+function popup(list,b,below){const r=b.getBoundingClientRect();menu.innerHTML='';
   list.forEach(([t,fn])=>{const m=document.createElement('button');m.textContent=t;m.onclick=()=>{fn();menu.classList.remove('open')};menu.append(m)});
-  menu.style.left=Math.max(8,Math.min(r.left,innerWidth-168))+'px';menu.style.bottom=(innerHeight-r.top+8)+'px';menu.classList.add('open')}
+  menu.style.left=Math.max(8,Math.min(r.left,innerWidth-184))+'px';if(below){menu.style.top=(r.bottom+8)+'px';menu.style.bottom='auto'}else{menu.style.top='auto';menu.style.bottom=(innerHeight-r.top+8)+'px'}menu.classList.add('open')}
 const rgba=(c,a)=>`rgba(${parseInt(c.substr(1,2),16)},${parseInt(c.substr(3,2),16)},${parseInt(c.substr(5,2),16)},${a})`;
-function dab(c,a,b){ // one segment of the current brush
+function dab(c,a,b){ // one segment of the current brush; pr = pen pressure
+  const R=18*Math.max(.35,pr);
   const dx=b[0]-a[0],dy=b[1]-a[1],n=Math.max(1,Math.ceil(Math.hypot(dx,dy)/3));
   c.save();c.strokeStyle=c.fillStyle=color;c.lineCap=c.lineJoin='round';
   if(tool==='air'||tool==='spray'){
     for(let i=0;i<=n;i++){const x=a[0]+dx*i/n,y=a[1]+dy*i/n;
-      if(tool==='air'){const g=c.createRadialGradient(x,y,0,x,y,18);g.addColorStop(0,rgba(color,.22));g.addColorStop(1,rgba(color,0));c.fillStyle=g;c.beginPath();c.arc(x,y,18,0,7);c.fill()}
-      else for(let j=0;j<10;j++){const t=Math.random()*6.283,r=Math.random()*18;c.fillRect(x+Math.cos(t)*r,y+Math.sin(t)*r,1.6,1.6)}}
+      if(tool==='air'){const g=c.createRadialGradient(x,y,0,x,y,R);g.addColorStop(0,rgba(color,.22));g.addColorStop(1,rgba(color,0));c.fillStyle=g;c.beginPath();c.arc(x,y,R,0,7);c.fill()}
+      else for(let j=0;j<10;j++){const t=Math.random()*6.283,r=Math.random()*R;c.fillRect(x+Math.cos(t)*r,y+Math.sin(t)*r,1.6,1.6)}}
   }else{
-    c.lineWidth={pen:3,pencil:2,fat:14,glow:5,eraser:28}[tool]||3;
+    c.lineWidth=({pen:3,pencil:2,fat:14,glow:5,eraser:28}[tool]||3)*Math.max(.3,pr);
     if(tool==='pencil')c.globalAlpha=.75;
     if(tool==='glow'){c.shadowColor=color;c.shadowBlur=18}
     for(let k=tool==='glow'?2:1;k--;){c.beginPath();c.moveTo(a[0],a[1]);c.lineTo(b[0],b[1]);c.stroke()}
@@ -361,11 +494,12 @@ async function saveDraft(){
     for(const f of fs){const ls=[];for(const c of f){let bl=c.b;
       if(!bl){const v=c.v;bl=await new Promise(r=>c.toBlob(r,'image/png'));if(c.v===v)c.b=bl}
       ls.push({b:bl,d:c.d||0})}fr.push(ls)}
-    (await idb()).transaction('s','readwrite').objectStore('s').put({fps,fmt,cf,cl,meta:meta.map(m=>({...m})),fr,t:Date.now()},'current');
+    (await idb()).transaction('s','readwrite').objectStore('s').put({w:W,h:H,fps,fmt,cf,cl,meta:meta.map(m=>({...m})),fr,t:Date.now()},'current');
   }catch(e){}
   saving=false;if(again){again=false;schedule()}
 }
 async function restore(d){
+  if(d.w&&(d.w!==W||d.h!==H))setSize(d.w,d.h);
   meta=d.meta;fps=d.fps;fmt=d.fmt;cl=Math.min(d.cl,d.meta.length-1);
   frames=await Promise.all(d.fr.map(ls=>Promise.all(ls.map(async o=>{const c=mk(),im=await createImageBitmap(o.b);
     c.getContext('2d').drawImage(im,0,0);c.d=o.d;c.b=o.b;return c}))));
@@ -375,10 +509,28 @@ async function restore(d){
 document.addEventListener('visibilitychange',()=>{if(document.hidden){clearTimeout(st);saveDraft()}});
 addEventListener('pagehide',()=>{clearTimeout(st);saveDraft()});
 
+/* ---------- custom canvas size ---------- */
+function setSize(nw,nh){ // scales everything to fit the new size
+  const ow=W,oh=H,s=Math.min(nw/ow,nh/oh);W=nw;H=nh;
+  frames=frames.map(f=>f.map(c=>{const n=mk();n.getContext('2d').drawImage(c,(nw-ow*s)/2,(nh-oh*s)/2,ow*s,oh*s);n.d=c.d;touch(n);return n}));
+  view.width=W;view.height=H;tmp=mk();tx=tmp.getContext('2d');
+  view.style.setProperty('--ar',W/H);view.style.setProperty('--arr',W+'/'+H);
+  undoS.length=redoS.length=0;hist();drawStrip();render();schedule();
+}
+function applySize(w,h){
+  w=Math.round(w)&~1;h=Math.round(h)&~1; // even numbers keep MP4 happy
+  if(!(w>=64&&h>=64&&w<=1600&&h<=1600)){$('#smsg').textContent='Width and height must be between 64 and 1600.';return}
+  if(w*h>900000){$('#smsg').textContent='Too big for a phone. Keep width × height under 900,000 (for example 900 × 1000).';return}
+  setSize(w,h);closeSheets();
+}
+$('#sizeB').onclick=()=>{$('#sw').value=W;$('#sh').value=H;$('#smsg').textContent='Existing drawings are scaled to fit. Undo history is cleared.';sheet($('#sizep'))};
+document.querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>{const[w,h]=b.dataset.s.split('x');applySize(+w,+h)});
+$('#sapply').onclick=()=>applySize(+$('#sw').value,+$('#sh').value);
+
 /* ---------- undo / redo (drawing and fills, last 20 steps) ---------- */
 const undoS=[],redoS=[];
 const snap=c=>({c,img:c.getContext('2d').getImageData(0,0,W,H),d:c.d});
-function hist(){$('#undo').disabled=!undoS.length;$('#redo').disabled=!redoS.length}
+function hist(){$('#undo').disabled=!undoS.length;$('#redo').disabled=!redoS.length;$('#fundo').disabled=$('#undo').disabled;$('#fredo').disabled=$('#redo').disabled}
 function save(){undoS.push(snap(frames[cf][cl]));if(undoS.length>20)undoS.shift();redoS.length=0;hist()}
 function step(from,to){
   let e;while((e=from.pop())){
