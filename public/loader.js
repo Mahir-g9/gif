@@ -64,6 +64,7 @@
                 const x = new XMLHttpRequest();
                 x.open('POST', o.url);
                 if (o.json) x.setRequestHeader('Content-Type', 'application/json');
+                for (const k in (o.headers || {})) x.setRequestHeader(k, o.headers[k]);
                 if (o.upload) {
                     L.upload();
                     x.upload.onprogress = e => { if (e.lengthComputable) L.up(e.loaded / e.total); };
