@@ -133,11 +133,14 @@ function choose(t){
     $('fi').onchange=()=>{const f=$('fi').files[0];if(f)addFile(f)};
   }else if(k==='html'){
     body.innerHTML=`<textarea id="code" placeholder="Paste your HTML and CSS here (10,000+ lines is fine)" spellcheck="false"></textarea>
-    <div class="g3"><div><label class="f" for="hs">Seconds</label><input type="number" id="hs" value="3" min="1" max="20"></div>
-    <div><label class="f" for="hf">Frames/sec</label><input type="number" id="hf" value="10" min="4" max="15"></div>
-    <div><label class="f">Size</label><input type="text" value="960x540" disabled></div></div>
-    <div class="g2" style="margin-top:8px"><button id="hp">Paste</button><button class="rose" id="hr">Render</button></div>`;
-    $('hp').onclick=()=>paste($('code'),true);$('hr').onclick=addHtml;
+    <div class="g2"><div><label class="f" for="hs">Seconds (1 to 30)</label><input type="number" id="hs" value="3" min="1" max="30"></div>
+    <div><label class="f" for="hf">Frames/sec (4 to 30)</label><input type="number" id="hf" value="10" min="4" max="30"></div>
+    <div><label class="f" for="hw">Width</label><input type="number" id="hw" value="960" min="160" max="1920" inputmode="numeric"></div>
+    <div><label class="f" for="hh">Height</label><input type="number" id="hh" value="540" min="90" max="1920" inputmode="numeric"></div></div>
+    <canvas id="hv" style="display:none;width:100%;margin-top:8px;border-radius:12px;background:#fff"></canvas>
+    <p class="status" id="hn"></p>
+    <div class="g3"><button id="hp">Paste</button><button id="hpv">Preview</button><button class="rose" id="hr">Render</button></div>`;
+    $('hp').onclick=()=>paste($('code'),true);$('hpv').onclick=previewHtml;$('hr').onclick=addHtml;
   }else{
     body.innerHTML=`<div style="display:grid;grid-template-columns:1fr auto auto;gap:8px;margin-top:10px"><input type="text" id="lk" placeholder="https://..." inputmode="url" autocomplete="off">
     <button id="lp" aria-label="Paste"><svg class="i" viewBox="0 0 24 24"><rect x="6" y="4" width="12" height="17" rx="2"/><path d="M9 4h6v3H9z"/></svg></button><button class="rose" id="la">Add</button></div>`;
@@ -174,7 +177,7 @@ const NS='http://www.w3.org/1999/xhtml';
 function htmlScene(code){
   const doc=new DOMParser().parseFromString(code,'text/html');
   doc.querySelectorAll('script,iframe,video,canvas').forEach(n=>n.remove());
-  const css=[...doc.querySelectorAll('style')].map(s=>s.textContent).join('\n').replace(/(^|[\s,}])(html|body)(?=[\s,{.:#\[])/g,'$1.__r');
+  const css=[...doc.querySelectorAll('style')].map(s=>s.textContent).join('\n').replace(/(^|[\s,}])(html|body)(?=[\s,{.:#\[>+~)])/g,'$1.__r');
   doc.querySelectorAll('style').forEach(s=>s.remove());
   const xs=new XMLSerializer(),inner=[...doc.body.childNodes].map(n=>xs.serializeToString(n)).join('');
   return {css,inner,style:doc.body.getAttribute('style')||'',cls:doc.body.getAttribute('class')||''};
@@ -186,16 +189,40 @@ async function renderFrame(sc,w,h,t,cv){
   const img=new Image();img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg);await img.decode();
   const x=cv.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,w,h);x.drawImage(img,0,0,w,h);
 }
+function htmlSize(){
+  const ev=v=>Math.round(v)&~1,w=ev(+$('hw').value||960),h=ev(+$('hh').value||540);
+  if(w<160||h<90||w>1920||h>1920)return{err:'Width must be 160 to 1920 and height 90 to 1920.'};
+  if(w*h>1300000)return{err:'That size is too big for a phone. Keep width × height under 1,300,000 (for example 1280 × 1000).'};
+  return{w,h};
+}
+function htmlWarn(code){ // tell the person what this renderer cannot do
+  const w=[];
+  if(/<script[\s>]/i.test(code))w.push('JavaScript does not run here, so animation made by scripts will not move.');
+  if(/<canvas[\s>]/i.test(code))w.push('Canvas drawings are not captured.');
+  if(/<link[^>]+stylesheet|@import|https?:\/\/[^\s"')]+\.(png|jpe?g|gif|webp|svg|woff2?|ttf)/i.test(code))w.push('Online styles, fonts and images cannot load. Put them inside the code.');
+  return w.join(' ');
+}
+async function previewHtml(){
+  const code=$('code').value,z=htmlSize();
+  if(!code.trim()){$('hn').textContent='Paste some HTML first.';return}
+  if(z.err){$('hn').textContent=z.err;return}
+  const cv=$('hv');cv.width=z.w;cv.height=z.h;cv.style.display='block';$('hn').textContent='Drawing a preview...';
+  try{await renderFrame(htmlScene(code),z.w,z.h,Math.min(1,(+$('hs').value||3)/2),cv);
+    $('hn').textContent=htmlWarn(code)||'This is how the video will look at about 1 second.'}
+  catch(e){$('hn').textContent='Could not draw this code. Check for broken tags.'}
+}
 async function addHtml(){
   const code=$('code').value;if(!code.trim()){say('Paste some HTML first.',true);return}
-  const secs=Math.min(20,Math.max(1,+$('hs').value||3)),fps=Math.min(15,Math.max(4,+$('hf').value||10)),W=960,H=540,n=Math.round(secs*fps);
+  const z=htmlSize();if(z.err){say(z.err,true);return}
+  const secs=Math.min(30,Math.max(1,+$('hs').value||3)),fps=Math.min(30,Math.max(4,Math.round(+$('hf').value)||10)),n=Math.round(secs*fps);
+  if(n>450){say(`That is ${n} frames. The limit is 450 (for example 15 seconds at 30 fps). Lower the seconds or the frames per second.`,true);return}
   openSheet('');say('Rendering frames on your phone...');
   try{
-    const d=await Loader.run($('ld'),{url:'/publish',upload:true,est:30,body:async()=>{
-      const sc=htmlScene(code),cv=document.createElement('canvas');cv.width=W;cv.height=H;
-      const fd=new FormData();fd.append('format','mp4');fd.append('fps',fps);
-      for(let i=0;i<n;i++){await renderFrame(sc,W,H,i/fps,cv);
-        fd.append('frames',await new Promise(r=>cv.toBlob(r,'image/png')),`f${i}.png`);say(`Rendering frame ${i+1} of ${n}...`)}
+    const d=await Loader.run($('ld'),{url:'/publish',upload:true,est:Math.max(20,n/4),body:async()=>{
+      const sc=htmlScene(code),cv=document.createElement('canvas');cv.width=z.w;cv.height=z.h;
+      const fd=new FormData();fd.append('format','mp4');fd.append('fps',fps);fd.append('ext','jpg');
+      for(let i=0;i<n;i++){await renderFrame(sc,z.w,z.h,i/fps,cv);
+        fd.append('frames',await new Promise(r=>cv.toBlob(r,'image/jpeg',.88)),`f${i}.jpg`);say(`Rendering frame ${i+1} of ${n}...`)}
       say('');return fd}});
     addClip({name:d.url.split('/').pop(),url:d.url,kind:'video',title:'HTML',duration:n/fps,audio:false});
   }catch(e){say(e.message||'Could not render the HTML.',true)}
