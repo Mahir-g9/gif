@@ -192,13 +192,13 @@ async function shrinkIfNeeded(file) {
 // ---- Publish (frames -> MP4 / GIF) ----------------------------------------
 const frameUpload = multer({
     dest: path.join(os.tmpdir(), 'frames'),
-    limits: { files: 200, fileSize: 8 * 1024 * 1024 }
+    limits: { files: 600, fileSize: 8 * 1024 * 1024 }
 });
 
-function render(dir, fps, gif, out) {
+function render(dir, fps, gif, out, ext = 'png') {
     return new Promise((resolve, reject) => {
         let cmd = ffmpeg()
-            .input(path.join(dir, 'f%03d.png'))
+            .input(path.join(dir, 'f%03d.' + ext))
             .inputOptions(['-framerate', String(fps)]);
         if (gif) {
             cmd = cmd
@@ -214,17 +214,18 @@ function render(dir, fps, gif, out) {
     });
 }
 
-app.post('/publish', frameUpload.array('frames', 200), async (req, res) => {
+app.post('/publish', frameUpload.array('frames', 600), async (req, res) => {
     const files = req.files || [];
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'job-'));
     try {
         if (!files.length) return res.status(400).json({ error: 'No frames received.' });
         const gif = req.body.format === 'gif';
         const fps = Math.min(Math.max(parseInt(req.body.fps, 10) || 8, 1), 30);
-        files.forEach((f, i) => fs.renameSync(f.path, path.join(dir, `f${String(i).padStart(3, '0')}.png`)));
+        const ext = req.body.ext === 'jpg' ? 'jpg' : 'png'; // the editor sends small JPEG frames
+        files.forEach((f, i) => fs.renameSync(f.path, path.join(dir, `f${String(i).padStart(3, '0')}.${ext}`)));
         const name = uuidv4().slice(0, 8) + (gif ? '.gif' : '.mp4');
         const out = path.join(uploadDir, name);
-        await render(dir, fps, gif, out);
+        await render(dir, fps, gif, out, ext);
         if (gif) await shrinkIfNeeded(out);
         await store(out, name, gif ? 'image/gif' : 'video/mp4');
         res.json({ url: fullUrl(req, name) });
@@ -564,6 +565,13 @@ app.get('/api/media', async (req, res) => {
         console.error(e);
         res.status(500).json({ error: 'Could not load album.' });
     }
+});
+
+// Any upload or body error comes back as readable JSON instead of a blank "Request failed".
+app.use((err, req, res, next) => {
+    const map = { LIMIT_FILE_COUNT: 'Too many files in one request.', LIMIT_FILE_SIZE: 'One of the files is too large.', LIMIT_UNEXPECTED_FILE: 'Unexpected file field.' };
+    console.error(err.message);
+    res.status(err.status || (map[err.code] ? 413 : 500)).json({ error: map[err.code] || err.message || 'Server error.' });
 });
 
 init()
